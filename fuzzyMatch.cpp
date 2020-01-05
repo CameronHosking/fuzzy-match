@@ -2,18 +2,21 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <x86intrin.h>    //AVX/SSE Extensions
+
 
 //represents up to a length 32 strand of DNA
 struct DNA4{
-	uint32_t As,Cs,Gs,Ts;
+	uint32_t letters[4];
+	uint32_t& operator[](size_t i){return letters[i];}
 };
 
-uint_fast8_t similarity(DNA4 a, DNA4 b)
+
+uint32_t similarity(DNA4 a, DNA4 b)
 {
-	return __builtin_popcount ((a.As&b.As)|(a.Cs&b.Cs)|(a.Gs&b.Gs)|(a.Ts&b.Ts));
+	return __builtin_popcount ((a[0]&b[0])+(a[1]&b[1])+(a[2]&b[2])+(a[3]&b[3]));
 }
 
-//TODO use SSE to paralise this 
 DNA4 createDNA4(const char *s, uint_fast8_t length)
 {
 	uint32_t As = 0;
@@ -38,6 +41,7 @@ DNA4 createDNA4(const char *s, uint_fast8_t length)
 	}
 	return DNA4{As,Cs,Gs,Ts};
 }
+
 DNA4 createDNA4(const std::string &s, uint_fast8_t length)
 {
 	return createDNA4(s.data(),length);
@@ -56,31 +60,50 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 	
 	DNA4 sequence = createDNA4(sequenceString,targetLengths-1);
 	size_t currentPos = targetLengths-1;
+	int *matched1 = new int[targetStrings.size()/2+1];
+	int *matched2 = new int[targetStrings.size()/2+1];
 	while(currentPos < sequenceLength)
 	{
-		
+		int numberOfMatches1 = 0;
+		int numberOfMatches2 = 0;
 		//add next character
 		char c = sequenceString[currentPos];
-		sequence.As <<= 1;
-		sequence.Cs <<= 1;
-		sequence.Gs <<= 1;
-		sequence.Ts <<= 1;
+		sequence[0] <<= 1;
+		sequence[1] <<= 1;
+		sequence[2] <<= 1;
+		sequence[3] <<= 1;
 		if(c=='A'||c=='a')
-			sequence.As |= 1;
+			sequence[0] |= 1;
 		else if(c=='C'||c=='c')
-			sequence.Cs |= 1;
+			sequence[1] |= 1;
 		else if(c=='G'||c=='g')
-			sequence.Gs |= 1;
+			sequence[2] |= 1;
 		else if(c=='T'||c=='t')
-			sequence.Ts |= 1;
+			sequence[3] |= 1;
 		
 		//compare all the targets with this sequence
-		for(int i = 0; i < targets.size();i++)
+		for(int i = 0; i < targets.size();i+=2)
 		{
 			if(similarity(sequence,targets[i])>=minimumMatches)
 			{
-				matches[i].push_back(std::string(sequenceString + currentPos - targetLengths + 1,targetLengths));
+				matched1[numberOfMatches1] = i;
+				numberOfMatches1++;
 			}
+			if(similarity(sequence,targets[i+1])>=minimumMatches)
+			{
+				matched2[numberOfMatches2] = i;
+				numberOfMatches2++;
+			}
+		}
+		
+		for(int i = 0; i < numberOfMatches1;++i)
+		{
+			matches[matched1[i]].push_back("");//std::string(sequenceString + currentPos - targetLengths + 1,targetLengths));
+		}
+		
+		for(int i = 0; i < numberOfMatches2;++i)
+		{
+			matches[matched2[i]].push_back("");//std::string(sequenceString + currentPos - targetLengths + 1,targetLengths));
 		}
 		currentPos++;
 	}
@@ -96,7 +119,7 @@ char randNucleotide()
 int main()
 {
 	constexpr size_t seqLength = 1000000;
-	constexpr size_t numTargets = 100;
+	constexpr size_t numTargets = 1000;
 	constexpr size_t targetLength = 23;
 	constexpr size_t minSimilarity = 15;
 	
