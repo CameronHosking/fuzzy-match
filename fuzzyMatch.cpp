@@ -10,6 +10,21 @@ struct DNA4{
 	uint32_t& operator[](size_t i){return letters[i];}
 };
 
+void addCharacter(DNA4 &s, char c)
+{
+	s[0] <<= 1;
+	s[1] <<= 1;
+	s[2] <<= 1;
+	s[3] <<= 1;
+	if(c=='A'||c=='a')
+		s[0] |= 1;
+	else if(c=='C'||c=='c')
+		s[1] |= 1;
+	else if(c=='G'||c=='g')
+		s[2] |= 1;
+	else if(c=='T'||c=='t')
+		s[3] |= 1;
+}
 
 uint32_t similarity(DNA4 &a, DNA4 &b)
 {
@@ -18,33 +33,19 @@ uint32_t similarity(DNA4 &a, DNA4 &b)
 
 DNA4 createDNA4(const char *s, uint_fast8_t length)
 {
-	uint32_t As = 0;
-	uint32_t Cs = 0;
-	uint32_t Gs = 0;
-	uint32_t Ts = 0;
+	DNA4 ret{0,0,0,0};
 	for(int i = 0; i < length; i++)
 	{
-		char c = s[i];
-		As <<= 1;
-		Cs <<= 1;
-		Gs <<= 1;
-		Ts <<= 1;
-		if(c=='A'||c=='a')
-			As |= 1;
-		else if(c=='C'||c=='c')
-			Cs |= 1;
-		else if(c=='G'||c=='g')
-			Gs |= 1;
-		else if(c=='T'||c=='t')
-			Ts |= 1;
+		addCharacter(ret,s[i]);
 	}
-	return DNA4{As,Cs,Gs,Ts};
+	return ret;
 }
 
 DNA4 createDNA4(const std::string &s, uint_fast8_t length)
 {
 	return createDNA4(s.data(),length);
 }
+
 
 
 std::vector<std::vector<std::string>> match(const char * sequenceString, size_t sequenceLength, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t minimumMatches)
@@ -66,19 +67,7 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 		int numberOfMatches1 = 0;
 		int numberOfMatches2 = 0;
 		//add next character
-		char c = sequenceString[currentPos];
-		sequence[0] <<= 1;
-		sequence[1] <<= 1;
-		sequence[2] <<= 1;
-		sequence[3] <<= 1;
-		if(c=='A'||c=='a')
-			sequence[0] |= 1;
-		else if(c=='C'||c=='c')
-			sequence[1] |= 1;
-		else if(c=='G'||c=='g')
-			sequence[2] |= 1;
-		else if(c=='T'||c=='t')
-			sequence[3] |= 1;
+		addCharacter(sequence,sequenceString[currentPos]);
 		
 		//compare all the targets with this sequence
 		for(int i = 0; i < targets.size();i+=2)
