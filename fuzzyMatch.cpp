@@ -2,7 +2,6 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include <x86intrin.h>    //AVX/SSE Extensions
 
 
 //represents up to a length 32 strand of DNA
@@ -12,7 +11,7 @@ struct DNA4{
 };
 
 
-uint32_t similarity(DNA4 a, DNA4 b)
+uint32_t similarity(DNA4 &a, DNA4 &b)
 {
 	return __builtin_popcount ((a[0]&b[0])+(a[1]&b[1])+(a[2]&b[2])+(a[3]&b[3]));
 }
@@ -98,12 +97,12 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 		
 		for(int i = 0; i < numberOfMatches1;++i)
 		{
-			matches[matched1[i]].push_back("");//std::string(sequenceString + currentPos - targetLengths + 1,targetLengths));
+			matches[matched1[i]].push_back(std::string(sequenceString + currentPos - targetLengths + 1,targetLengths));
 		}
 		
 		for(int i = 0; i < numberOfMatches2;++i)
 		{
-			matches[matched2[i]].push_back("");//std::string(sequenceString + currentPos - targetLengths + 1,targetLengths));
+			matches[matched2[i]].push_back(std::string(sequenceString + currentPos - targetLengths + 1,targetLengths));
 		}
 		currentPos++;
 	}
