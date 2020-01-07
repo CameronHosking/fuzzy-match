@@ -133,9 +133,10 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 	size_t currentPos = targetLength-1;
 	int *matched1 = new int[numTargets/2+1];
 	int *matched2 = new int[numTargets/2+1];
-	DNA4 As = createDNA4(std::string(targetLength,'A'),targetLength);
-	DNA4 Cs = createDNA4(std::string(targetLength,'C'),targetLength);
-	DNA4 Gs = createDNA4(std::string(targetLength,'G'),targetLength);
+
+	//masks off the the bits that aren't in the target length
+	uint32_t mask = (~0u)>>(32-targetLength);
+	
 	while(currentPos < sequenceLength)
 	{
 		//std::cout << currentPos << std::endl;
@@ -143,9 +144,11 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 		int numberOfMatches2 = 0;
 		//add next character
 		addCharacter(sequence,sequenceString[currentPos]);
-		int numAs = similarity(As,sequence);
-		int numCs = similarity(Cs,sequence);
-		int numGs = similarity(Gs,sequence);
+
+		int numAs = __builtin_popcount(sequence[0]&mask);
+		int numCs = __builtin_popcount(sequence[1]&mask);
+		int numGs = __builtin_popcount(sequence[2]&mask);
+
 		//std::cout << numAs << "\t" << numCs << "\t" << numGs << std::endl;
 		auto &targets = brackets[numAs][numCs][numGs];
 		if(targets.size()==0)
@@ -208,16 +211,13 @@ std::vector<std::vector<std::vector<std::vector<std::pair<uint32_t,DNA4> > > > >
 		}
 	}
 	
-	DNA4 As = createDNA4(std::string(targetLength,'A'),targetLength);
-	DNA4 Cs = createDNA4(std::string(targetLength,'C'),targetLength);
-	DNA4 Gs = createDNA4(std::string(targetLength,'G'),targetLength);
-	
+	uint32_t mask = (~0u)>>(32-targetLength);
 	for(int i = 0; i < targets.size();++i)
 	{
 		const DNA4 &target = targets[i];
-		int numAs = similarity(As,target);
-		int numCs = similarity(Cs,target);
-		int numGs = similarity(Gs,target);
+		int numAs = __builtin_popcount(target[0]&mask);
+		int numCs = __builtin_popcount(target[1]&mask);
+		int numGs = __builtin_popcount(target[2]&mask);
 		
 		for(int aOffset = -mismatches; aOffset <= mismatches; aOffset++)
 		{
