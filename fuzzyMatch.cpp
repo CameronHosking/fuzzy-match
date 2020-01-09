@@ -64,6 +64,7 @@ DNA4 createDNA4(const std::string &s, uint_fast8_t length)
 std::vector<DNA4> stringsToDNA4(const std::vector<std::string> &targetStrings)
 {
 	std::vector<DNA4> targets;
+	targets.reserve(targetStrings.size());
 	for(std::string s: targetStrings)
 	{
 		targets.push_back(createDNA4(s,s.size()));
