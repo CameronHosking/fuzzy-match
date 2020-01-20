@@ -147,8 +147,12 @@ inline std::vector<std::pair<DNA4,uint32_t>> &getTargets(uint32_t a, uint32_t c,
 	return buckets[a*32*32+c*32+g];
 }
 
-std::vector<std::vector<std::string>> match(const char * sequenceString, size_t sequenceLength, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches)
+std::vector<std::vector<std::string>> match(const char * sequenceString, size_t sequenceLength, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
+	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
+	bool filterExists = requiredMatch.size() > 0;
+	uint_fast8_t numFilterChars = getSimilarity(filterSeq,filterSeq);
+
 	auto targets = stringsToDNA4(targetStrings);
 	auto matches = std::vector<std::vector<std::string>>(targets.size());
 	if(targets.size()==0)
@@ -168,6 +172,14 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 		//add next character
 		addCharacter(sequence,sequenceString[currentPos]);
 		
+		if(filterExists)
+		{
+			if(getSimilarity(sequence,filterSeq)<numFilterChars)
+			{
+				currentPos++;
+				continue;
+			}
+		}
 		//compare all the targets with this sequence
 		for(int i = 0; i < targets.size()-1;i+=2)
 		{
@@ -206,8 +218,13 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 	return matches;
 }
 
-std::vector<std::vector<std::string>> match(const char * sequenceString, size_t sequenceLength, uint_fast8_t targetLength, const std::vector<std::pair<std::array<uint32_t,33>, std::vector<std::pair<DNA4,uint32_t>>>> &targetTargetSimilarities, uint_fast8_t mismatches)
+std::vector<std::vector<std::string>> match(const char * sequenceString, size_t sequenceLength, uint_fast8_t targetLength, const std::vector<std::pair<std::array<uint32_t,33>, std::vector<std::pair<DNA4,uint32_t>>>> &targetTargetSimilarities, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
+
+	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
+	bool filterExists = requiredMatch.size() > 0;
+	uint_fast8_t numFilterChars = getSimilarity(filterSeq,filterSeq);
+
 	std::cout << "starting to match" << std::endl;
 	auto matches = std::vector<std::vector<std::string>>(targetTargetSimilarities.size());
 	uint_fast8_t minimumMatches = targetLength - mismatches;
@@ -225,6 +242,15 @@ std::vector<std::vector<std::string>> match(const char * sequenceString, size_t 
 		int numberOfMatches2 = 0;
 		//add next character
 		addCharacter(sequence,sequenceString[currentPos]);
+
+		if(filterExists)
+		{
+			if(getSimilarity(sequence,filterSeq)<numFilterChars)
+			{
+				currentPos++;
+				continue;
+			}
+		}
 
 		int numAs = sequence.As(targetLength);
 		int numCs = sequence.Cs(targetLength);
