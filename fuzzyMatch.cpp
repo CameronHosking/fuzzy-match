@@ -367,7 +367,7 @@ std::vector<std::pair<std::array<uint32_t,33>, std::vector<std::pair<DNA4,uint32
 	return packedMismatches;
 }
 
-std::vector<std::vector<size_t>> match(const char * sequenceString, size_t sequenceLength, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
+std::vector<std::vector<size_t>> simpleMatch(const char * sequenceString, size_t sequenceLength, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
 	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
 	bool filterExists = requiredMatch.size() > 0;
@@ -450,10 +450,28 @@ std::vector<std::vector<size_t>> match(const char * sequenceString, size_t seque
 	return matches;
 }
 
-std::vector<std::vector<size_t>> match2(const char * sequenceString, size_t sequenceLength, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "")
+std::vector<std::vector<size_t>> match(const char * sequenceString, size_t sequenceLength, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
 	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
-	bool filterExists = requiredMatch.size() > 0;
+	uint_fast8_t numFilterChars = getSimilarity(filterSeq,filterSeq);
+
+	//hacky solution to approximate when it is best to use the simple solution
+	//instead of the target-target similarity solution
+	//this is only the case for target length = 23 and large sequence strings (> 1 million characters)
+	//if the same set of targets is to be used on many sets of sequences consider 
+	//precomputing target buckets and targetTargetSimilarities
+
+	
+	int overheadCost = mismatches;
+	overheadCost += numFilterChars/2;
+	if(targetStrings.size() < 2000) overheadCost++;
+	if(targetStrings.size() < 200) overheadCost++;
+	if(targetStrings.size() < 100) overheadCost++;
+	if(targetStrings.size() < 50) overheadCost+=2;
+	if(overheadCost>6)
+		return simpleMatch(sequenceString,sequenceLength,targetStrings,targetLength,mismatches,requiredMatch);
+
+	bool filterExists = numFilterChars > 0;
 	auto DNA4TargetStrings = stringsToDNA4(targetStrings);
 	if(filterExists)
 	{
@@ -475,8 +493,6 @@ std::vector<std::vector<size_t>> match2(const char * sequenceString, size_t sequ
 
 	fillTargetBuckets(DNA4TargetStrings,targetLength,mismatches);
 	const std::vector<std::pair<std::array<uint32_t,33>, std::vector<std::pair<DNA4,uint32_t>>>> targetTargetSimilarities = getTargetSimilarities(DNA4TargetStrings,minimumSimilarityToCheckBuckets - mismatches);
-
-	uint_fast8_t numFilterChars = getSimilarity(filterSeq,filterSeq);
 
 	std::cout << "starting to match" << std::endl;
 	auto matches = std::vector<std::vector<size_t>>(targetTargetSimilarities.size());
@@ -596,11 +612,11 @@ char randNucleotide()
 
 int main()
 {
-	constexpr size_t seqLength = 100000000;
-	constexpr size_t numTargets = 2000;
+	constexpr size_t seqLength = 10000000;
+	constexpr size_t numTargets = 10000;
 	constexpr size_t targetLength = 23;
 	constexpr size_t mismatches = 4;
-	const std::string filter = "gg";
+	const std::string filter = "";
 	char * sequence = new char[seqLength];
 	size_t As = 0;
 	for(int i = 0; i < seqLength; ++i)
@@ -620,9 +636,8 @@ int main()
 		targetStrings.push_back(target);
 	}
 
-	auto matches = match2(sequence,seqLength,targetStrings, targetLength,mismatches,filter);
+	auto matches = match(sequence,seqLength,targetStrings, targetLength,mismatches,filter);
 
-	//auto matches = match(sequence,seqLength,targetStrings,targetLength,mismatches,filter);
 	delete[] sequence;
 	size_t totalMatches = 0;
 	for(int i = 0; i < matches.size(); ++i)
