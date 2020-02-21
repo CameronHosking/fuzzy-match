@@ -13,7 +13,7 @@ struct DNA4{
 	uint64_t& operator[](size_t i){return ACandGT[i];}
 	bool operator==(const DNA4 & o) const
 	{
-		return o[0]==ACandGT[0]&o[1]==ACandGT[1];
+		return (o[0]==ACandGT[0])&&(o[1]==ACandGT[1]);
 	}
 	bool operator!=(const DNA4 &o)const{return !operator==(o);}
 	uint32_t As(uint32_t length) const {return __builtin_popcountll(ACandGT[1]>>32&&((1ULL<<length)-1));}
