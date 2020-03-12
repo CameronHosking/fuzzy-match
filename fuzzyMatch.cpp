@@ -31,6 +31,28 @@ struct DNA4{
 		ACandGT[0] &= mask;
 		ACandGT[1] &= mask;		
 	}
+
+	void addWildcards(const char *s, uint_fast8_t length, char wildcardChar)
+	{
+		uint64_t wildcardPositions=0;
+		for(uint_fast8_t i = 0; i < length; i++)
+		{
+			wildcardPositions <<= 1;
+			if(s[i]==wildcardChar)
+			{
+				wildcardPositions |= 1ULL;
+			}
+		}
+		//duplicate over the two 32 bit sections of the 64bit
+		wildcardPositions = wildcardPositions | (wildcardPositions << 32);
+		ACandGT[0] |= wildcardPositions;
+		ACandGT[1] |= wildcardPositions;
+	}
+	
+	uint_fast8_t getNumMatchableChars()
+	{
+		return __builtin_popcount(uint32_t((ACandGT[0]>>32)|(ACandGT[1]>>32)|ACandGT[0]|ACandGT[1]));
+	}
 };
 
 template<uint32_t pow>
@@ -377,7 +399,8 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 {
 	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
 	bool filterExists = requiredMatch.size() > 0;
-	uint_fast8_t numFilterChars = getSimilarity(filterSeq,filterSeq);
+	filterSeq.addWildcards(requiredMatch.data(),requiredMatch.size(),'*');
+	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
 
 	auto targets = stringsToDNA4(targetStrings);
 	auto matches = std::vector<std::vector<Location>>(targets.size());
@@ -464,7 +487,8 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 std::vector<std::vector<Location> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
 	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
-	uint_fast8_t numFilterChars = getSimilarity(filterSeq,filterSeq);
+	filterSeq.addWildcards(requiredMatch.data(),requiredMatch.size(),'*');
+	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
 
 	//hacky solution to approximate when it is best to use the simple solution
 	//instead of the target-target similarity solution
@@ -632,7 +656,7 @@ int main()
 	constexpr size_t numTargets = 10000;
 	constexpr size_t targetLength = 23;
 	constexpr size_t mismatches = 4;
-	const std::string filter = "";
+	const std::string filter = "XXXXXXXXXXXXXXXXXXXX*GG";
 	char * sequence = new char[seqLength];
 	size_t As = 0;
 	for(int i = 0; i < seqLength; ++i)
@@ -648,7 +672,12 @@ int main()
 			target += randNucleotide();
 		//targets will always have the filter
 		for(int j = 0; j < filter.size();j++)
-			target[targetLength-1-j]=filter[j];
+		{
+			if(filter[j]=='A'|filter[j]=='C'|filter[j]=='G'|filter[j]=='T')
+			{
+				target[targetLength-1-j]=filter[j];
+			}
+		}
 		targetStrings.push_back(target);
 	}
 	std::vector<std::string> sequences;
