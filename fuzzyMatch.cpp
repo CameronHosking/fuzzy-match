@@ -15,6 +15,19 @@ struct DNA4{
 	{
 		return (o[0]==ACandGT[0])&&(o[1]==ACandGT[1]);
 	}
+	//this is not a lexigraphical sort
+	bool operator>(const DNA4 &o)const{
+		if(ACandGT[0]!=o[0])
+			return ACandGT[0]>o[0];
+		return ACandGT[1]>o[1];
+	}
+	bool operator<(const DNA4 &o)const{
+		if(ACandGT[0]!=o[0])
+			return ACandGT[0]<o[0];
+		return ACandGT[1]<o[1];
+	}
+	bool operator>=(const DNA4 &o)const{return !operator<(o);}
+	bool operator<=(const DNA4 &o)const{return !operator>(o);}
 	bool operator!=(const DNA4 &o)const{return !operator==(o);}
 	uint32_t As(uint32_t length) const {return __builtin_popcountll(ACandGT[1]>>32&&((1ULL<<length)-1));}
 	uint32_t Cs(uint32_t length) const {return __builtin_popcountll(ACandGT[0]<<64-length);}
