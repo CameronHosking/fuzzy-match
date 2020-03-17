@@ -421,7 +421,15 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 	{
 		return matches;
 	}
-	uint_fast8_t minimumMatches = targetLengths - mismatches;
+	
+	if(filterExists)
+	{
+		for(DNA4 &t: targets)
+		{
+			t.subtractMask(filterSeq);
+		}
+	}
+	uint_fast8_t minimumMatches = targets.at(0).getNumMatchableChars() - mismatches;
 	//auto similarities = std::array<uint64_t,24>();
 	//similarities.fill(0);
 	int *matched1 = new int[targetStrings.size()/2+1];
