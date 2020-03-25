@@ -2,6 +2,21 @@
 #include <numeric>
 #include "fuzzyMatch.h"
 
+uint32_t trivialGetSimilarity(const char *a, const char* b)
+{
+    uint32_t i = 0;
+    uint32_t similarity = 0;
+    while(a[i])
+    {
+        if(a[i]==b[i])
+        {
+            similarity++;
+        }
+        i++;
+    }
+    return similarity;    
+}
+
 unsigned char randNucleotide()
 {
 	constexpr unsigned char DNA[4] = {'A','C','G','T'};
@@ -28,11 +43,11 @@ int main()
 		for(uint_fast8_t j = 0; j < targetLength;++j)
 			target += randNucleotide();
 		//targets will always have the filter
-		for(uint_fast8_t j = 0; j < filter.size();j++)
+		for(int j = (int)filter.size()-1; j >= 0;j--)
 		{
 			if((filter[j]=='A')|(filter[j]=='C')|(filter[j]=='G')|(filter[j]=='T'))
 			{
-				target[targetLength-1-j]=filter[j];
+				target[j]=filter[j];
 			}
 		}
 		targetStrings.push_back(target);

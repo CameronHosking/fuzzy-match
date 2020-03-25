@@ -2,6 +2,12 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <iostream>
+#include <cmath>
+#include <memory>
+#include <iterator>
+#include <algorithm>
+#include <bitset>
 
 //represents up to a length 32 strand of DNA
 struct DNA4{
@@ -59,9 +65,14 @@ struct DNA4{
 		ACandGT[1] |= wildcardPositions;
 	}
 	
-	uint_fast8_t getNumMatchableChars()
+	uint_fast8_t getNumMatchableChars() const
 	{
 		return __builtin_popcount(uint32_t((ACandGT[0]>>32)|(ACandGT[1]>>32)|ACandGT[0]|ACandGT[1]));
+	}
+	bool matchableCharacterAtPosition(uint32_t i,uint_fast8_t length) const
+	{
+		uint64_t mask = (1ULL|(1ULL<<32)<<(length-i-1));
+		return (ACandGT[0]|ACandGT[1])|mask;
 	}
 };
 
@@ -88,6 +99,31 @@ uint32_t nChooseK(uint32_t n,uint32_t k)
     }
     return result;
 }
+
+template <typename T>
+//returns a vector of all combinations (n choose k) of elements stored at begin
+std::vector<std::vector<T>> getAllCombinations(T* begin, uint32_t n, uint32_t k)
+{
+	std::vector<std::vector<T> > allCombinations;
+	std::string bitmask(k, 1); // K leading 1's
+    bitmask.resize(n, 0); // N-K trailing 0's
+ 
+    // print integers and permute bitmask
+    do {
+		std::vector<T> combination;
+        for (uint32_t i = 0; i < n; ++i) // [0..N-1] integers
+        {
+            if (bitmask[i])
+			{
+				combination.push_back(begin[i]);
+			}
+        }
+		std::sort(combination.begin(),combination.end());
+        allCombinations.push_back(combination);
+    } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
+	return allCombinations;
+}
+
 constexpr uint64_t acs[256] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 								0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0x100000000ULL,0,1ULL,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -132,7 +168,7 @@ DNA4 createDNA4(const char *s, uint_fast8_t length)
 	// return ret;
 	switch(length)
 	{
-		case 32: {c = s[length-32]; ac |= acs[c] << 31; gt |= gts[c] << 31;} 
+		case 32: {c = s[length-32]; ac |= acs[c] << 31; gt |= gts[c] << 31;}
 		case 31: {c = s[length-31]; ac |= acs[c] << 30; gt |= gts[c] << 30;}
 		case 30: {c = s[length-30]; ac |= acs[c] << 29; gt |= gts[c] << 29;}
 		case 29: {c = s[length-29]; ac |= acs[c] << 28; gt |= gts[c] << 28;} 
@@ -172,7 +208,7 @@ std::vector<DNA4> stringsToDNA4(const std::vector<std::string> &targetStrings)
 	std::vector<DNA4> targets;
 	targets.reserve(targetStrings.size());
 	for(std::string s: targetStrings)
-{
+	{
 		targets.push_back(createDNA4(s.c_str(),s.size()));
 	}
 	return targets;
@@ -203,224 +239,162 @@ std::string DNA4ToString(const DNA4 &a, uint_fast8_t length)
 	return s;
 }
 
+struct TargetBucket
+{
+	std::pair<DNA4,uint32_t> *begin;
+	std::pair<DNA4,uint32_t> *end;
+};
+
+class TargetContainer
+{
+	public:
+	TargetContainer(const std::vector<DNA4> &targets, uint32_t targetLength, uint32_t mismatches, const DNA4 &filter = DNA4{0,0})
+	:stringLength(targetLength),numberOfVariableChars(stringLength - filter.getNumMatchableChars()),mismatches(mismatches),numberOfTargets(targets.size())
+	{
+		if(filter == DNA4{0,0}) 
+			hasFilter = false;
+		uint32_t numberOfDivisions = optimumNumberOfDivisions();
+		hashmaps = std::vector< std::vector< std::vector<std::pair<DNA4,uint32_t> > > >(numberOfDivisions*arrangementsPerDivision);
+		for(auto &h: hashmaps)
+		{
+			h = std::vector<std::vector<std::pair<DNA4,uint32_t> > >(bucketsPerArrangement);
+		}
+		createHashHelpers(numberOfDivisions,filter);
+		putTargetsInHashmaps(targets);
+	}
+	//returns the optimum number of divisions to use, if it is not worth using divisions zero is returned
+	uint32_t optimumNumberOfDivisions()
+	{
+		std::cout << "Divisions\tdivisionSize\tmismatchesPerDivision\tarrangementsPerDivision\ttargetsPerBucket\ttotalWork"<<std::endl;
+		//calculate the optimum division size
+		uint64_t minimumTotalWork = numberOfTargets;
+		uint32_t bestNumberOfDivisions = 0;
+		for(uint32_t divisions = 1; divisions <= numberOfVariableChars; ++divisions)
+		{
+			divisionSize = numberOfVariableChars/divisions;//round down
+			mismatchesPerDivision = mismatches/divisions;//round down
+			arrangementsPerDivision = nChooseK(divisionSize,mismatchesPerDivision);
+			bucketsPerArrangement = std::pow(4,divisionSize-mismatchesPerDivision);//where 4 is the size of the alphabet
+			//overhead to generate a hash for each arrangement within each division is approximately = numberOfVariableChars
+			//each arrangement contains on average targets/bucketsPerArrangement
+			double totalWork = (numberOfVariableChars*10+numberOfTargets/bucketsPerArrangement)*(arrangementsPerDivision*divisions);
+			if(totalWork < minimumTotalWork)
+			{
+				minimumTotalWork = totalWork;
+				bestNumberOfDivisions = divisions;
+			}
+			std::cout << divisions <<'\t'<< divisionSize <<'\t'<< mismatchesPerDivision <<'\t'<< arrangementsPerDivision <<'\t'<< numberOfTargets/bucketsPerArrangement <<'\t'<< totalWork << std::endl;
+		}
+		divisionSize = numberOfVariableChars/bestNumberOfDivisions;//round down
+		mismatchesPerDivision = mismatches/bestNumberOfDivisions;//round down
+		arrangementsPerDivision = nChooseK(divisionSize,mismatchesPerDivision);
+		bucketsPerArrangement = std::pow(4,divisionSize-mismatchesPerDivision);//where 4 is the size of the alphabet
+		std::cout << bestNumberOfDivisions << std::endl;
+		
+		return bestNumberOfDivisions;
+	}
+
+	void createHashHelpers(uint32_t numberOfDivisions,const DNA4 &filter)
+	{
+		std::unique_ptr<uint32_t[]> positions(new uint32_t[numberOfVariableChars]);
+		uint32_t ithMatchableCharacter = 0;
+		for(uint32_t i = 0; i < numberOfVariableChars;++i)
+		{
+			if(filter.matchableCharacterAtPosition(ithMatchableCharacter,stringLength))
+			{
+				positions[i] = stringLength - ithMatchableCharacter - 1;
+			}
+			else
+			{
+				i--;
+			}	
+			ithMatchableCharacter++;
+		}
+		//positions now contains the position of each matchable character counting from the end
+		//if there was no filter or all the filter characters were at the end of the string then
+		//the array will just contain the numbers numberOfVariableChars-1 to 0 in decreasing order
+
+		for(uint32_t i = 0; i < numberOfDivisions;++i)
+		{
+			auto combinationsInDivision = getAllCombinations<uint32_t>(positions.get()+i*divisionSize,divisionSize,divisionSize-mismatchesPerDivision);
+			hashHelpers.insert(hashHelpers.end(),combinationsInDivision.begin(),combinationsInDivision.end());
+		}	
+	}
+
+	std::vector<TargetBucket> getBuckets(const DNA4 &string)
+	{
+		const std::vector<uint32_t> hashes = slowestHashInTheWorld(string);
+		std::vector<TargetBucket> buckets;
+		for(uint32_t j = 0; j < hashes.size();j++)
+		{
+			std::vector<std::pair<DNA4, uint32_t>> &bucket = hashmaps[j][hashes[j]];
+			buckets.push_back(TargetBucket{bucket.data(),bucket.data()+bucket.size()});
+		}
+		return buckets;
+	}
+
+	std::vector<uint32_t> slowestHashInTheWorld(const DNA4 &string)
+	{
+		//bitmask of positions of each character
+		uint32_t chars[4] = {string[0]>>32,string[1]>>32,(uint32_t)string[0],uint32_t(string[1])};//the high 32 bits of DNA4 and the low 32 bits
+		std::vector<uint32_t> hashes;
+		for(uint32_t i = 0; i < hashHelpers.size(); ++i)
+		{
+			uint32_t hash = 0;
+			const std::vector<uint32_t> &relevantPositions = hashHelpers[i];
+			for(uint32_t j = 0; j < relevantPositions.size();j++)
+			{
+				uint32_t pos = relevantPositions[j];
+				hash <<= 2;
+				//only uses 3 of the four character of the alphabet, the fourth is represented by 00
+				//this will hash strings that contain none alphabet characters as if the had the 4th character there instead
+				hash |= ((chars[0]>>pos)&1UL) | ((chars[1]>>pos)&1UL)*2 | ((chars[2]>>pos)&1UL)*3;
+			}
+			//std::cout << std::bitset<6>(hash) << std::endl;
+			hashes.push_back(hash);
+		}
+		return hashes;
+	}
+
+	void putTargetsInHashmaps(const std::vector<DNA4> &targets)
+	{
+		for(uint32_t i = 0; i < targets.size();++i)
+		{
+			std::pair<DNA4,uint32_t> strPosPair(targets[i],i);
+			//std::cout << DNA4ToString(strPosPair.first,23) << std::endl;
+			const std::vector<uint32_t> hashes = slowestHashInTheWorld(targets[i]);
+			for(uint32_t j = 0; j < hashes.size();j++)
+			{
+				//std::cout << hashes[j] << '\t' << hashmaps.size() << '\t' << hashmaps[j].size() << std::endl;
+				hashmaps[j][hashes[j]].push_back(strPosPair);
+			}
+		}
+	}
+
+	private:
+	uint32_t stringLength;
+	std::vector< std::vector< std::vector<std::pair<DNA4,uint32_t> > > > hashmaps;
+	std::vector<std::vector<uint32_t> > hashHelpers;
+	bool hasFilter;
+	DNA4 filter;
+	uint32_t numberOfVariableChars;
+	uint32_t mismatches;
+	uint32_t numberOfTargets;
+	uint32_t divisionSize;
+	uint32_t mismatchesPerDivision;
+	uint32_t arrangementsPerDivision;
+	uint64_t bucketsPerArrangement;
+
+
+};
+
 struct Location
 {
 	size_t seqID;
 	size_t positionInSeq;
+	bool operator!=(const Location &o) { return o.seqID!=seqID||o.positionInSeq!=positionInSeq;}
+	bool operator==(const Location &o) { return !operator!=(o);}
 };
-
-//storage of target buckets
-std::vector<std::pair<DNA4,uint32_t>> buckets[32*32*32];
-
-void clearTargetBuckets()
-{
-	for(int i = 0; i < 32*32*32; i++)
-	{
-		buckets[i].clear();
-	}
-}
-
-bool isNewTargetSet(const std::vector<DNA4> &targets, uint_fast8_t targetLength,uint_fast8_t mismatches)
-{
-	static struct BucketInput
-	{
-		std::vector<DNA4> targets;
-		uint32_t targetLength;
-		uint_fast8_t mismatches;
-	}currentBucketInput;
-	
-	if(currentBucketInput.targets.size()==targets.size())
-	{
-		bool sameInput = true;
-		for(size_t i = 0; i < currentBucketInput.targets.size(); i++)
-		{
-			if(currentBucketInput.targets[i]!=targets[i])
-			{
-				sameInput = false;
-				break;
-			}
-		}
-		sameInput &= currentBucketInput.targetLength == targetLength;
-		sameInput &= currentBucketInput.mismatches == mismatches;
-		if(sameInput)
-			return false;
-	}
-
-	currentBucketInput.targets=targets;
-	currentBucketInput.targetLength = targetLength;
-	currentBucketInput.mismatches = mismatches;
-	return true;
-}
-
-void fillTargetBuckets(const std::vector<DNA4> &targets, uint_fast8_t targetLength,uint_fast8_t mismatches)
-{
-	// std::vector<std::vector<std::vector<std::vector<std::pair<DNA4,uint32_t> > > > > brackets;
-	// int i = 0;
-	// for(int As = 0; As <= targetLength;As++)
-	// {
-	// 	//std::cout << As << "\t" << i << std::endl;
-	// 	//length of A[n] is ((k-n+1)^2+(k-n+1))/2 or (n^2 -(3+2k)n + (k^2 + 3k + 2))/2 
-	// 	//A[n] starts at A[0] + n(n^2 - (6+3k)n + 3k^2 + 12k + 11)/6 
-	// 	//total length of A arrays is (k^3 + 6k^2 + 11k + 6)/6
-	// 	//brackets.push_back(std::vector<std::vector<std::vector<std::pair<DNA4,uint32_t> > > >());
-	// 	for(int Cs = 0; Cs <= targetLength - As;Cs++)
-	// 	{
-	// 		//length of C[n] is k-A-n+1
-	// 		//C[n] starts at C[0] + (k-A+1)n - (n-1)n/2
-	// 		//total length of C arrays is ((k-A+1)^2+(k-A+1))/2
-	// 		//brackets[As].push_back(std::vector<std::vector<std::pair<DNA4,uint32_t> > >());
-	// 		//length of G[n] is 1
-	// 		//G[n] starts at G[0] + n
-	// 		//total length of G arrays is k-A-C+1
-	// 		for(int Gs = 0; Gs <= targetLength - As - Cs; Gs++)
-	// 		{
-
-	// 			//brackets[As][Cs].push_back(std::vector<std::pair<DNA4,uint32_t> >());
-	// 			//buckets[32*32*As+32*Cs+Gs].push_back()
-	// 			//Ts is no greater than targetLength - As - Cs - Gs
-	// 			i++;
-	// 		}
-	// 	}
-	// }
-	//std::cout << targetLength << "\t" << i << std::endl;
-	
-	if(isNewTargetSet(targets,targetLength,mismatches))
-	{
-		clearTargetBuckets();
-	}
-
-	//store targets by acg content	
-	// std::vector<std::pair<DNA4,uint32_t>> ACGcontent[32*32*32];
-	// for(int i = 0; i < targets.size();++i)
-	// {
-	// 	const DNA4 &target = targets[i];
-	// 	ACGcontent[target.As(targetLength)*32*32+target.Cs(targetLength)*32+target.Gs(targetLength)].push_back(std::pair<DNA4,uint32_t>(target,i));
-	// }
-
-	int numRecordedCharacters = getSimilarity(targets[0],targets[0]);
-	for(size_t i = 0; i < targets.size();++i)
-	{
-		const DNA4 &target = targets[i];
-		int numAs = target.As(targetLength);
-		int numCs = target.Cs(targetLength);
-		int numGs = target.Gs(targetLength);
-		
-		for(uint_fast8_t a = std::max(numAs-mismatches,0); a <= std::min(numAs+mismatches,numRecordedCharacters); a++)
-		{
-			int aSurplus = std::max(a - numAs,0);
-			int aDeficit = std::max(numAs - a,0);
-			for(uint_fast8_t c = std::max(numCs-mismatches+aDeficit,0); c <= std::min(numCs+mismatches-aSurplus,numRecordedCharacters); c++)
-			{
-				int acSurplus = aSurplus + std::max(c - numCs,0);
-				int acDeficit = aDeficit + std::max(numCs - c,0);
-				for(uint_fast8_t g = std::max(numGs-mismatches+acDeficit,0); g <= std::min(numGs+mismatches-acSurplus,numRecordedCharacters); g++)
-				{
-					//std::cout << numAs+aOffset << "\t" << numCs+cOffset << "\t" << numGs+gOffset << std::endl;
-					//brackets[numAs+aOffset][numCs+cOffset][numGs+gOffset].push_back(std::pair<DNA4,uint32_t>(i,target));
-					buckets[32*32*a+32*c+g].push_back(std::pair<DNA4,uint32_t>(target,i));
-				}
-			}
-		}
-	}
-	//double totalWork;
-	// for(int As = 0; As <= targetLength;As++)
-	// {
-	// 	for(int Cs = 0; Cs <= targetLength - As;Cs++)
-	// 	{
-	// 		for(int Gs = 0; Gs <= targetLength - As - Cs; Gs++)
-	// 		{
-		
-	// 			for(int a = std::max(As-mismatches,0); a <= std::min(As+mismatches,targetLength); a++)
-	// 			{
-	// 				int aSurplus = std::max(a - As,0);
-	// 				int aDeficit = std::max(As - a,0);
-	// 				for(int c = std::max(Cs-mismatches+aDeficit,0); c <= std::min(Cs+mismatches-aSurplus,targetLength); c++)
-	// 				{
-	// 					int acSurplus = aSurplus + std::max(c - Cs,0);
-	// 					int acDeficit = aDeficit + std::max(Cs - c,0);
-	// 					uint32_t total = 0;
-	// 					auto &bucket = buckets[32*32*As+32*Cs+Gs];
-	// 					for(int g = std::max(Gs-mismatches+acDeficit,0); g <= std::min(Gs+mismatches-acSurplus,targetLength); g++)
-	// 					{
-	// 						total += ACGcontent[a*32*32+c*32+g].size();
-	// 					}
-	// 					bucket.reserve(total);
-	// 					for(int g = std::max(Gs-mismatches+acDeficit,0); g <= std::min(Gs+mismatches-acSurplus,targetLength); g++)
-	// 					{
-	// 						bucket.insert(bucket.end(),ACGcontent[a*32*32+c*32+g].begin(),ACGcontent[a*32*32+c*32+g].end());
-	// 					}
-	// 				}
-	// 			}
-
-	// 			//totalWork += buckets[32*32*As+32*Cs+Gs].size()*buckets[32*32*As+32*Cs+Gs].size();
-	// 			// if(buckets[32*32*As+32*Cs+Gs].size() > 100)
-	// 			// {
-	// 			// 	std::cout << As << "\t" << Cs << "\t" << Gs << "\t" << targetLength - As - Cs - Gs << "\t"; 
-	// 			// 	std::cout<<buckets[32*32*As+32*Cs+Gs].size() << std::endl;
-
-	// 			// }
-	// 			// if(ACGcontent[32*32*As+32*Cs+Gs].size()>0)
-	// 			// {
-	// 			// 	std::cout << As << "\t" << Cs << "\t" << Gs << "\t" << targetLength - As - Cs - Gs << "\t" << ACGcontent[32*32*As+32*Cs+Gs].size() << std::endl; 				
-	// 			// }
-	// 			//Ts is no greater than targetLength - As - Cs - Gs
-	// 		}
-	// 	}
-	// }
-	//std::cout << totalWork << std::endl;
-}
-
-inline std::vector<std::pair<DNA4,uint32_t>> &getTargets(uint32_t a, uint32_t c, uint32_t g)
-{
-	return buckets[a*32*32+c*32+g];
-}
-
-//returns a vector which contains an array and a vector for each target. The array stores the start of each mismatch bucket in the vector.
-//so to access targets with mismatch 10-16 to target i you would access v[i].second[v[i].first[10]] up to v[i].second[v[i].first[17]]
-//or std::pair<DNA4,uint32_t> * it = v[i].second.data(); for(int i = v[i].first[10]; i < v[i].first[17]; i++){//do something with it[i]} 
-std::vector<std::pair<std::array<uint32_t,33>, std::vector<std::pair<DNA4,uint32_t>>>> getTargetSimilarities(const std::vector<DNA4> &targets,uint_fast8_t minSimilarityToStore)
-{
-	std::vector<std::array<std::vector<std::pair<DNA4,uint32_t>>,33>> mismatches(targets.size());
-	uint_fast8_t targetLength = getSimilarity(targets[0],targets[0]);
-
-	for(size_t i = 0; i < targets.size();i++)
-	{
-		//include the similarity of the target with itself to make later operaions more simple
-		mismatches[i][0].push_back(std::pair<DNA4,uint32_t>(targets[i],i));
-
-		//store the similarity of each target with this one
-		for(size_t j = i+1; j < targets.size();j++)
-		{
-			uint_fast8_t similarity = getSimilarity(targets[i],targets[j]);
-			//we only go into this array if similarity is at least the minimum similarity
-			if(similarity>=minSimilarityToStore)
-			{
-				uint_fast8_t mismatch = targetLength - similarity;
-				mismatches[i][mismatch].push_back(std::pair<DNA4,uint32_t>(targets[j],j));
-				mismatches[j][mismatch].push_back(std::pair<DNA4,uint32_t>(targets[i],i));
-			}		
-		}
-	}
-
-	std::vector<std::pair<std::array<uint32_t,33>, std::vector<std::pair<DNA4,uint32_t>>>> packedMismatches(targets.size());
-	for(size_t i = 0; i < targets.size();i++)
-	{
-		uint32_t total = 0;
-		auto &targetPair = packedMismatches[i];
-		for(uint_fast8_t mismatch = 0; mismatch <= 32; mismatch++)
-		{
-			targetPair.first[mismatch] = total;
-			total += mismatches[i][mismatch].size();
-		}
-		targetPair.second.reserve(total);
-		for(uint_fast8_t j = 0; j <= targetLength; j++)
-		{
-			targetPair.second.insert(targetPair.second.end(),mismatches[i][j].begin(),mismatches[i][j].end());
-		}
-	}
-	
-	return packedMismatches;
-}
 
 std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
@@ -472,8 +446,6 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 			//compare all the targets with this sequence
 			for(size_t i = 0; i < targets.size()-1;i+=2)
 			{
-				//similarities[getSimilarity(sequence,targets[i])]++;
-				//similarities[getSimilarity(sequence,targets[i+1])]++;
 				if(getSimilarity(sequence,targets[i])>=minimumMatches)
 				{
 					matched1[numberOfMatches1] = i;
@@ -487,7 +459,6 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 			}
 			if(targets.size()%2)
 			{
-				//similarities[getSimilarity(sequence,targets[targets.size()-1])]++;
 				if(getSimilarity(sequence,targets[targets.size()-1])>=minimumMatches)
 				{
 					matched1[numberOfMatches1] = targets.size()-1;
@@ -506,14 +477,7 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 			currentPos++;
 		}
 	}
-	
-	// uint64_t sum = std::accumulate(similarities.begin(),similarities.end(),0ULL);
-	// uint64_t atLeast = sum;
-	// for(int i = 0; i < similarities.size();i++)
-	// {
-	// 	std::cout << i << '\t' << similarities[i]/(double)sum << '\t' << atLeast/(double)sum << std::endl;
-	// 	atLeast -= similarities[i];
-	// }
+
 	delete[] matched1;
 	delete[] matched2;
 	return matches;
@@ -521,30 +485,20 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 
 std::vector<std::vector<Location> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
+	auto matches = std::vector<std::vector<Location>>(targetStrings.size());
+	//return simpleMatch(sequences,targetStrings,targetLength,mismatches,requiredMatch);
+	if(targetStrings.size()==0||sequences.size()==0)
+	{
+		return matches;
+	}
+	uint_fast8_t targetLengths = targetStrings[0].size();
+
 	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
 	filterSeq.addWildcards(requiredMatch.data(),requiredMatch.size(),'*');
 	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
 
-	//hacky solution to approximate when it is best to use the simple solution
-	//instead of the target-target similarity solution
-	//this is only the case for target length = 23 and large sequence strings (> 1 million characters)
-	//if the same set of targets is to be used on many sets of sequences consider 
-	//precomputing target buckets and targetTargetSimilarities
-	size_t totalSequenceLength = 0;
-	for(const std::string &s: sequences) 
-		totalSequenceLength += s.size();
-	int overheadCost = mismatches;
-	overheadCost += numFilterChars/2;
-	if(totalSequenceLength<2000000) overheadCost++;
-	if(targetStrings.size() < 2000) overheadCost++;
-	if(targetStrings.size() < 200) overheadCost++;
-	if(targetStrings.size() < 100) overheadCost++;
-	if(targetStrings.size() < 50) overheadCost+=2;
-	if(overheadCost>6)
-		return simpleMatch(sequences,targetStrings,targetLength,mismatches,requiredMatch);
-
-	bool filterExists = numFilterChars > 0;
 	auto DNA4TargetStrings = stringsToDNA4(targetStrings);
+	bool filterExists = numFilterChars>0;
 	if(filterExists)
 	{
 		for(DNA4 &t: DNA4TargetStrings)
@@ -552,41 +506,23 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 			t.subtractMask(filterSeq);
 		}
 	}
-
-	uint_fast8_t importantChars = getSimilarity(DNA4TargetStrings[0],DNA4TargetStrings[0]);
-
-	//specifically chosen for length 23
-	//TODO calculate optimum for strings of length n
-	uint_fast8_t minimumSimilarityToCheckBuckets = 12;
-	if(mismatches>4) //otherwise memory exceeds 1.5GB
-		minimumSimilarityToCheckBuckets = 13;
-	if(targetStrings.size()<2000)//with fewer targets we are less likely to come accross a high match by chance so we need to accept lower similarity
-		minimumSimilarityToCheckBuckets = 11;
-
-	fillTargetBuckets(DNA4TargetStrings,targetLength,mismatches);
-	const std::vector<std::pair<std::array<uint32_t,33>, std::vector<std::pair<DNA4,uint32_t>>>> targetTargetSimilarities = getTargetSimilarities(DNA4TargetStrings,minimumSimilarityToCheckBuckets - mismatches);
-
-	std::cout << "starting to match" << std::endl;
-	auto matches = std::vector<std::vector<Location> >(targetTargetSimilarities.size());
-	uint_fast8_t minimumMatches = importantChars - mismatches;
-
-	int *matched1 = new int[targetTargetSimilarities.size()/2+1];
-	int *matched2 = new int[targetTargetSimilarities.size()/2+1];
-
+	std::cout << "started indexing targets" << std::endl;
+	TargetContainer targetContainer(DNA4TargetStrings, targetLengths, mismatches, filterSeq);
+	std::cout << "finished indexing targets" << std::endl;
+	uint_fast8_t minimumMatches = DNA4TargetStrings.at(0).getNumMatchableChars() - mismatches;
+	uint64_t comparisons = 0;
+	uint64_t naiveComparisons = 0;
 	for(size_t seqID = 0; seqID < sequences.size();++seqID)
 	{
 		size_t sequenceLength = sequences[seqID].size();
 		const char * sequenceString = sequences[seqID].data();
-		DNA4 rawSequence = createDNA4(sequenceString,targetLength-1);
-		size_t currentPos = targetLength-1;
+		auto sequence = createDNA4(sequenceString,targetLengths-1);
+		size_t currentPos = targetLengths-1;
 		while(currentPos < sequenceLength)
 		{
-			//std::cout << currentPos << std::endl;
-			int numberOfMatches1 = 0;
-			int numberOfMatches2 = 0;
 			//add next character
-			addCharacter(rawSequence,sequenceString[currentPos]);
-			DNA4 sequence = rawSequence;
+			addCharacter(sequence,sequenceString[currentPos]);
+			
 			if(filterExists)
 			{
 				if(getSimilarity(sequence,filterSeq)<numFilterChars)
@@ -594,88 +530,27 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 					currentPos++;
 					continue;
 				}
-				
-				sequence.subtractMask(filterSeq);
 			}
-
-			int numAs = sequence.As(targetLength);
-			int numCs = sequence.Cs(targetLength);
-			int numGs = sequence.Gs(targetLength);
-
-			//std::cout << numAs << "\t" << numCs << "\t" << numGs << std::endl;
-			const std::pair<DNA4,uint32_t> *target = buckets[numAs*32*32+numCs*32+numGs].data();
-			const std::pair<DNA4,uint32_t> *end = target + buckets[numAs*32*32+numCs*32+numGs].size();	
-			uint_fast8_t maxSimilarity = minimumSimilarityToCheckBuckets - 1;
-			if(target==end)
+			naiveComparisons += targetStrings.size();
+			std::vector<TargetBucket> buckets = targetContainer.getBuckets(sequence);
+			for(TargetBucket b: buckets)
 			{
-				currentPos++;
-				continue;
-			}
-			//uint totalChecked = 0;
-			//compare all the targets with this sequence
-			while(target < end-1)
-			{
-				uint_fast8_t similarity1 = getSimilarity(sequence,target->first);
-				uint_fast8_t similarity2 = getSimilarity(sequence,(target+1)->first);
-				//totalChecked+=2;
-
-				if(similarity1>maxSimilarity||similarity2>maxSimilarity)
+				comparisons += b.end - b.begin;
+				for(std::pair<DNA4,uint32_t> *targetIter = b.begin; targetIter!=b.end; targetIter++)
 				{
-					if(similarity2>similarity1)
+					if(getSimilarity(sequence,targetIter->first)>=minimumMatches)
 					{
-						target = target+1;
-						similarity1 = similarity2;
+						if(matches[targetIter->second].size()==0||matches[targetIter->second].back()!=Location{seqID,currentPos})
+						{
+							matches[targetIter->second].push_back(Location{seqID,currentPos});
+						}
 					}
-					maxSimilarity = similarity1;
-					auto &t = targetTargetSimilarities[target->second];
-
-					uint_fast8_t lowestSimilarity = std::max(similarity1-mismatches,0);
-					uint_fast8_t highestSimilarity = std::min(similarity1+mismatches,(int)importantChars);
-					target = t.second.data() + t.first[importantChars-highestSimilarity];
-					end = t.second.data() + t.first[importantChars-lowestSimilarity+1];
-
-					numberOfMatches1 = 0;
-					numberOfMatches2 = 0;
-					continue;
 				}
-
-				if(similarity1>=minimumMatches)
-				{
-					matched1[numberOfMatches1] = target->second;
-					numberOfMatches1++;
-				}
-				if(similarity2>=minimumMatches)
-				{
-					matched2[numberOfMatches2] = (target+1)->second;
-					numberOfMatches2++;
-				}
-				
-				target+=2;
-			}
-			//std::cout << "\t\t" << totalChecked << std::endl;
-			//with an odd number of targets we need to check the last value 
-			if(target == end - 1)
-			{
-				if(getSimilarity(sequence,(end-1)->first)>=minimumMatches)
-				{
-					matched1[numberOfMatches1] = (end-1)->second;
-					numberOfMatches1++;
-				}
-			}
-				
-			for(int i = 0; i < numberOfMatches1;++i)
-			{
-				matches[matched1[i]].push_back(Location{seqID,currentPos});
-			}
-			for(int i = 0; i < numberOfMatches2;++i)
-			{
-				matches[matched2[i]].push_back(Location{seqID,currentPos});
 			}
 			currentPos++;
 		}
 	}
-	delete[] matched1;
-	delete[] matched2;
+	std::cout << "performed " << comparisons << " comparisons; naive would perform " << naiveComparisons <<" comparisons" << std::endl; 
 	return matches;
 }
 
