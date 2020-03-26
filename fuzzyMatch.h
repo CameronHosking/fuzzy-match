@@ -242,15 +242,16 @@ std::string DNA4ToString(const DNA4 &a, uint_fast8_t length)
 
 struct TargetBucket
 {
-	std::pair<DNA4,uint32_t> *begin;
-	std::pair<DNA4,uint32_t> *end;
+	DNA4 *begin_DNA;
+	uint32_t *begin_position;
+	uint64_t size;
 };
 
 class TargetContainer
 {
 	public:
 	TargetContainer(const std::vector<DNA4> &targets, uint32_t targetLength, uint32_t mismatches, const DNA4 &filter = DNA4{0,0}, uint64_t maxIndexSize = ~0ULL)
-	:stringLength(targetLength),buckets(nullptr),bucketsForLastHash(nullptr),numberOfVariableChars(stringLength - filter.getNumMatchableChars()),mismatches(mismatches),numberOfTargets(targets.size())
+	:stringLength(targetLength),buckets_DNA4(nullptr),buckets_positions(nullptr),bucketsForLastHash(nullptr),numberOfVariableChars(stringLength - filter.getNumMatchableChars()),mismatches(mismatches),numberOfTargets(targets.size())
 	{
 		if(filter == DNA4{0,0}) 
 			hasFilter = false;
@@ -259,16 +260,28 @@ class TargetContainer
 			return;
 		totalBuckets = numberOfDivisions*arrangementsPerDivision*bucketsPerArrangement;
 		totalHashmaps = numberOfDivisions*arrangementsPerDivision;
-
-		buckets = new std::vector<std::pair<DNA4,uint32_t> >[totalBuckets];
-		bucketsForLastHash = new uint64_t[totalHashmaps];
+		buckets_positions = new std::vector<uint32_t>[totalBuckets];
+		//buckets = new std::vector<std::pair<DNA4,uint32_t> >[totalBuckets];
+		bucketsForLastHash = new uint32_t[totalHashmaps];
 		createHashHelpers(numberOfDivisions,filter);
 		putTargetsInHashmaps(targets);
+		buckets_DNA4 = new std::vector<DNA4>[totalBuckets];
+		for(uint i = 0; i < totalBuckets;++i)
+		{
+			std::vector<uint32_t> &bucket = buckets_positions[i];
+			buckets_DNA4[i] = std::vector<DNA4>(bucket.size());
+			for(uint j = 0; j < bucket.size(); j++)
+			{
+				buckets_DNA4[i][j] = targets[buckets_positions[i][j]];
+			}
+		}
+
 	}
 
 	~TargetContainer()
 	{
-		delete[] buckets;
+		delete[] buckets_DNA4;
+		delete[] buckets_positions;
 		delete[] bucketsForLastHash;
 	}
 	//returns the optimum number of divisions to use, if it is not worth using divisions zero is returned
@@ -338,8 +351,8 @@ class TargetContainer
 		slowestHashInTheWorld(string);
 		for(uint32_t j = 0; j < totalHashmaps;j++)
 		{
-			std::vector<std::pair<DNA4, uint32_t>> &bucket = buckets[bucketsForLastHash[j]];
-			bucketsForString[j] = TargetBucket{bucket.data(),bucket.data()+bucket.size()};
+			uint32_t bucket = bucketsForLastHash[j];
+			bucketsForString[j] = TargetBucket{buckets_DNA4[bucket].data(),buckets_positions[bucket].data(),buckets_positions[bucket].size()};
 		}
 	}
 
@@ -373,7 +386,7 @@ class TargetContainer
 			slowestHashInTheWorld(target);
 			for(uint32_t j = 0; j < totalHashmaps;j++)
 			{
-				buckets[bucketsForLastHash[j]].emplace_back(target,i);
+				buckets_positions[bucketsForLastHash[j]].push_back(i);
 			}
 		}
 	}
@@ -384,15 +397,17 @@ class TargetContainer
 
 	private:
 	uint32_t stringLength;
-	std::vector<std::pair<DNA4,uint32_t> > *buckets;
-	mutable uint64_t * bucketsForLastHash;
+	//std::vector<std::pair<DNA4,uint32_t> > *buckets;
+	std::vector<DNA4> *buckets_DNA4;
+	std::vector<uint32_t> *buckets_positions;
+	mutable uint32_t * bucketsForLastHash;
 	std::vector<std::vector<uint32_t> > hashHelpers;
 	bool hasFilter;
 	DNA4 filter;
 	uint32_t numberOfVariableChars;
 	uint32_t mismatches;
 	uint32_t numberOfTargets;
-	uint64_t numberOfDivisions;
+	uint32_t numberOfDivisions;
 	uint32_t divisionSize;
 	uint32_t mismatchesPerDivision;
 	uint32_t arrangementsPerDivision;
@@ -566,13 +581,13 @@ std::vector<std::vector<std::pair<Location,DNA4>> > match(const std::vector<std:
 			targetContainer.getBuckets(sequence,bucketsArray);
 			for(uint32_t i = 0; i < targetContainer.numberOfHashmaps(); ++i)
 			{
-				std::pair<DNA4,uint32_t> *end = bucketsArray[i].end;
-				comparisons += end - bucketsArray[i].begin;
-				for(std::pair<DNA4,uint32_t> *targetIter = bucketsArray[i].begin; targetIter!=end; targetIter++)
+				TargetBucket bucket = bucketsArray[i];
+				comparisons += bucket.size;
+				for(uint32_t targetNum = 0; targetNum<bucket.size; targetNum++)
 				{
-					if(getSimilarity(sequence,targetIter->first)>=minimumMatches)
+					if(getSimilarity(sequence,bucket.begin_DNA[targetNum])>=minimumMatches)
 					{
-						auto & targetMatches = matches[targetIter->second];
+						auto & targetMatches = matches[bucket.begin_position[targetNum]];
 						if(targetMatches.size()==0||targetMatches.back().first!=Location{seqID,currentPos})
 						{
 							targetMatches.push_back(std::pair<Location,DNA4>(Location{seqID,currentPos},sequence));
