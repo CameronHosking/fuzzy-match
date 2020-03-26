@@ -411,7 +411,7 @@ struct Location
 	bool operator==(const Location &o) { return !operator!=(o);}
 };
 
-std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
+std::vector<std::vector<std::pair<Location,DNA4>>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
 	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
 	bool filterExists = requiredMatch.size() > 0;
@@ -419,7 +419,7 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
 
 	auto targets = stringsToDNA4(targetStrings);
-	auto matches = std::vector<std::vector<Location>>(targets.size());
+	auto matches = std::vector<std::vector<std::pair<Location,DNA4>>>(targets.size());
 	if(targets.size()==0)
 	{
 		return matches;
@@ -488,12 +488,12 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 			}
 			for(int i = 0; i < numberOfMatches1;++i)
 			{
-				matches[matched1[i]].push_back(Location{seqID,currentPos});
+				matches[matched1[i]].push_back(std::pair<Location,DNA4>(Location{seqID,currentPos},sequence));
 			}
 			
 			for(int i = 0; i < numberOfMatches2;++i)
 			{
-				matches[matched2[i]].push_back(Location{seqID,currentPos});
+				matches[matched2[i]].push_back(std::pair<Location,DNA4>(Location{seqID,currentPos},sequence));
 			}
 			currentPos++;
 		}
@@ -506,9 +506,9 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 	return matches;
 }
 
-std::vector<std::vector<Location> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
+std::vector<std::vector<std::pair<Location,DNA4>> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
 {
-	auto matches = std::vector<std::vector<Location>>(targetStrings.size());
+	auto matches = std::vector<std::vector<std::pair<Location,DNA4>>>(targetStrings.size());
 	if(targetStrings.size()==0||sequences.size()==0)
 	{
 		return matches;
@@ -571,9 +571,9 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 				{
 					if(getSimilarity(sequence,targetIter->first)>=minimumMatches)
 					{
-						if(matches[targetIter->second].size()==0||matches[targetIter->second].back()!=Location{seqID,currentPos})
+						if(matches[targetIter->second].size()==0||matches[targetIter->second].back().first!=Location{seqID,currentPos})
 						{
-							matches[targetIter->second].push_back(Location{seqID,currentPos});
+							matches[targetIter->second].push_back(std::pair<Location,DNA4>(Location{seqID,currentPos},sequence));
 						}
 					}
 				}
