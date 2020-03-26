@@ -29,12 +29,13 @@ int main()
 	constexpr size_t numTargets = 1000000;
 	constexpr size_t targetLength = 23;
 	constexpr size_t mismatches = 2;
-	const std::string filter = "XXXXXXXXXXXXXXXXXXXXGG";
-	char * sequence = new char[seqLength];
+	const std::string filter = "*XXXXXXX*XXXXXXXXXXGXG";
+	char * sequence = new char[seqLength+1];
 	for(size_t i = 0; i < seqLength; ++i)
 	{
 		sequence[i] = randNucleotide();
 	}
+	sequence[seqLength] = '\0';
 	std::vector<std::string> targetStrings;
 	
 	for(size_t i = 0; i < numTargets; i++)
