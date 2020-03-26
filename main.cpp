@@ -25,11 +25,11 @@ unsigned char randNucleotide()
 
 int main()
 {
-	constexpr size_t seqLength = 10000000;
-	constexpr size_t numTargets = 10000;
+	constexpr size_t seqLength = 1000000;
+	constexpr size_t numTargets = 1000000;
 	constexpr size_t targetLength = 23;
-	constexpr size_t mismatches = 4;
-	const std::string filter = "XXXXXXXXXXXXXXXXXXXX*GG";
+	constexpr size_t mismatches = 2;
+	const std::string filter = "XXXXXXXXXXXXXXXXXXXXGG";
 	char * sequence = new char[seqLength];
 	for(size_t i = 0; i < seqLength; ++i)
 	{

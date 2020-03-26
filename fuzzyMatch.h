@@ -8,6 +8,7 @@
 #include <iterator>
 #include <algorithm>
 #include <bitset>
+#include "stopwatch.h"
 
 //represents up to a length 32 strand of DNA
 struct DNA4{
@@ -253,12 +254,15 @@ class TargetContainer
 	{
 		if(filter == DNA4{0,0}) 
 			hasFilter = false;
-		uint32_t numberOfDivisions = optimumNumberOfDivisions();
+		numberOfDivisions = optimumNumberOfDivisions();
+		if(numberOfDivisions==0)
+			return;
 		hashmaps = std::vector< std::vector< std::vector<std::pair<DNA4,uint32_t> > > >(numberOfDivisions*arrangementsPerDivision);
 		for(auto &h: hashmaps)
 		{
 			h = std::vector<std::vector<std::pair<DNA4,uint32_t> > >(bucketsPerArrangement);
 		}
+		tmpHashStorage = new uint32_t[hashmaps.size()];
 		createHashHelpers(numberOfDivisions,filter);
 		putTargetsInHashmaps(targets);
 	}
@@ -285,6 +289,8 @@ class TargetContainer
 			}
 			std::cout << divisions <<'\t'<< divisionSize <<'\t'<< mismatchesPerDivision <<'\t'<< arrangementsPerDivision <<'\t'<< numberOfTargets/bucketsPerArrangement <<'\t'<< totalWork << std::endl;
 		}
+		if(bestNumberOfDivisions==0)
+			return 0;
 		divisionSize = numberOfVariableChars/bestNumberOfDivisions;//round down
 		mismatchesPerDivision = mismatches/bestNumberOfDivisions;//round down
 		arrangementsPerDivision = nChooseK(divisionSize,mismatchesPerDivision);
@@ -321,23 +327,24 @@ class TargetContainer
 		}	
 	}
 
-	std::vector<TargetBucket> getBuckets(const DNA4 &string)
+	void getBuckets(const DNA4 &string, TargetBucket* buckets)
 	{
-		const std::vector<uint32_t> hashes = slowestHashInTheWorld(string);
-		std::vector<TargetBucket> buckets;
-		for(uint32_t j = 0; j < hashes.size();j++)
+		slowestHashInTheWorld(string);
+		for(uint32_t j = 0; j < hashmaps.size();j++)
 		{
-			std::vector<std::pair<DNA4, uint32_t>> &bucket = hashmaps[j][hashes[j]];
-			buckets.push_back(TargetBucket{bucket.data(),bucket.data()+bucket.size()});
+			std::vector<std::pair<DNA4, uint32_t>> &bucket = hashmaps[j][tmpHashStorage[j]];
+			buckets[j] = TargetBucket{bucket.data(),bucket.data()+bucket.size()};
 		}
-		return buckets;
 	}
 
-	std::vector<uint32_t> slowestHashInTheWorld(const DNA4 &string)
+	//std::vector<uint32_t> slowestHashInTheWorld(const DNA4 &string)
+	void slowestHashInTheWorld(const DNA4 &string) const
 	{
 		//bitmask of positions of each character
+	#pragma GCC diagnostic ignored "-Wnarrowing"
 		uint32_t chars[4] = {string[0]>>32,string[1]>>32,(uint32_t)string[0],uint32_t(string[1])};//the high 32 bits of DNA4 and the low 32 bits
-		std::vector<uint32_t> hashes;
+	#pragma GCC diagnostic pop
+		//std::vector<uint32_t> hashes;
 		for(uint32_t i = 0; i < hashHelpers.size(); ++i)
 		{
 			uint32_t hash = 0;
@@ -346,14 +353,15 @@ class TargetContainer
 			{
 				uint32_t pos = relevantPositions[j];
 				hash <<= 2;
-				//only uses 3 of the four character of the alphabet, the fourth is represented by 00
+				//only uses 3 of the four character of the alphabet, the fourth is represented by 0's
 				//this will hash strings that contain none alphabet characters as if the had the 4th character there instead
 				hash |= ((chars[0]>>pos)&1UL) | ((chars[1]>>pos)&1UL)*2 | ((chars[2]>>pos)&1UL)*3;
 			}
 			//std::cout << std::bitset<6>(hash) << std::endl;
-			hashes.push_back(hash);
+			//hashes.push_back(hash);
+			tmpHashStorage[i] = hash;
 		}
-		return hashes;
+		//return hashes;
 	}
 
 	void putTargetsInHashmaps(const std::vector<DNA4> &targets)
@@ -362,14 +370,18 @@ class TargetContainer
 		{
 			std::pair<DNA4,uint32_t> strPosPair(targets[i],i);
 			//std::cout << DNA4ToString(strPosPair.first,23) << std::endl;
-			const std::vector<uint32_t> hashes = slowestHashInTheWorld(targets[i]);
-			for(uint32_t j = 0; j < hashes.size();j++)
+			slowestHashInTheWorld(targets[i]);
+			for(uint32_t j = 0; j < hashmaps.size();j++)
 			{
 				//std::cout << hashes[j] << '\t' << hashmaps.size() << '\t' << hashmaps[j].size() << std::endl;
-				hashmaps[j][hashes[j]].push_back(strPosPair);
+				hashmaps[j][tmpHashStorage[j]].push_back(strPosPair);
 			}
 		}
 	}
+
+	uint32_t numberOfHashmaps() const {return hashmaps.size();}
+
+	operator bool(){return numberOfDivisions!=0;}
 
 	private:
 	uint32_t stringLength;
@@ -380,10 +392,12 @@ class TargetContainer
 	uint32_t numberOfVariableChars;
 	uint32_t mismatches;
 	uint32_t numberOfTargets;
+	uint64_t numberOfDivisions;
 	uint32_t divisionSize;
 	uint32_t mismatchesPerDivision;
 	uint32_t arrangementsPerDivision;
 	uint64_t bucketsPerArrangement;
+	mutable uint32_t *tmpHashStorage;
 
 
 };
@@ -417,11 +431,15 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 			t.subtractMask(filterSeq);
 		}
 	}
+	stop_watch s;
+	s.start();
+	std::cout << "Using simple method "<< std::endl;
 	uint_fast8_t minimumMatches = targets.at(0).getNumMatchableChars() - mismatches;
 	//auto similarities = std::array<uint64_t,24>();
 	//similarities.fill(0);
 	int *matched1 = new int[targetStrings.size()/2+1];
 	int *matched2 = new int[targetStrings.size()/2+1];
+	uint64_t numComparisons = 0;
 	for(size_t seqID = 0; seqID < sequences.size();++seqID)
 	{
 		size_t sequenceLength = sequences[seqID].size();
@@ -443,6 +461,7 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 					continue;
 				}
 			}
+			numComparisons+= targets.size();
 			//compare all the targets with this sequence
 			for(size_t i = 0; i < targets.size()-1;i+=2)
 			{
@@ -480,13 +499,14 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 
 	delete[] matched1;
 	delete[] matched2;
+	s.stop();
+	std::cout<< numComparisons << " comparisons took " << s << std::endl;
 	return matches;
 }
 
 std::vector<std::vector<Location> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
 	auto matches = std::vector<std::vector<Location>>(targetStrings.size());
-	//return simpleMatch(sequences,targetStrings,targetLength,mismatches,requiredMatch);
 	if(targetStrings.size()==0||sequences.size()==0)
 	{
 		return matches;
@@ -506,9 +526,17 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 			t.subtractMask(filterSeq);
 		}
 	}
-	std::cout << "started indexing targets" << std::endl;
+	stop_watch s;
+	s.start();
 	TargetContainer targetContainer(DNA4TargetStrings, targetLengths, mismatches, filterSeq);
-	std::cout << "finished indexing targets" << std::endl;
+	if(!targetContainer)
+	{
+		return simpleMatch(sequences,targetStrings,targetLength,mismatches,requiredMatch);
+	}
+	TargetBucket * bucketsArray = new TargetBucket[targetContainer.numberOfHashmaps()];
+	s.stop();
+	std::cout << "indexing targets took "<< s << std::endl;
+	s.start();
 	uint_fast8_t minimumMatches = DNA4TargetStrings.at(0).getNumMatchableChars() - mismatches;
 	uint64_t comparisons = 0;
 	uint64_t naiveComparisons = 0;
@@ -532,11 +560,11 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 				}
 			}
 			naiveComparisons += targetStrings.size();
-			std::vector<TargetBucket> buckets = targetContainer.getBuckets(sequence);
-			for(TargetBucket b: buckets)
+			targetContainer.getBuckets(sequence,bucketsArray);
+			for(uint32_t i = 0; i < targetContainer.numberOfHashmaps(); ++i)
 			{
-				comparisons += b.end - b.begin;
-				for(std::pair<DNA4,uint32_t> *targetIter = b.begin; targetIter!=b.end; targetIter++)
+				comparisons += bucketsArray[i].end - bucketsArray[i].begin;
+				for(std::pair<DNA4,uint32_t> *targetIter = bucketsArray[i].begin; targetIter!=bucketsArray[i].end; targetIter++)
 				{
 					if(getSimilarity(sequence,targetIter->first)>=minimumMatches)
 					{
@@ -550,7 +578,9 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 			currentPos++;
 		}
 	}
-	std::cout << "performed " << comparisons << " comparisons; naive would perform " << naiveComparisons <<" comparisons" << std::endl; 
+	s.stop();
+	std::cout<< "comparisons took " << s << std::endl;
+	std::cout << "performed " << comparisons << " comparisons; naive would perform " << naiveComparisons <<" comparisons" << std::endl;
 	return matches;
 }
 
