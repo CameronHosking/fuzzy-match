@@ -249,12 +249,12 @@ struct TargetBucket
 class TargetContainer
 {
 	public:
-	TargetContainer(const std::vector<DNA4> &targets, uint32_t targetLength, uint32_t mismatches, const DNA4 &filter = DNA4{0,0})
+	TargetContainer(const std::vector<DNA4> &targets, uint32_t targetLength, uint32_t mismatches, const DNA4 &filter = DNA4{0,0}, uint64_t maxIndexSize = ~0ULL)
 	:stringLength(targetLength),numberOfVariableChars(stringLength - filter.getNumMatchableChars()),mismatches(mismatches),numberOfTargets(targets.size())
 	{
 		if(filter == DNA4{0,0}) 
 			hasFilter = false;
-		numberOfDivisions = optimumNumberOfDivisions();
+		numberOfDivisions = optimumNumberOfDivisions(maxIndexSize);
 		if(numberOfDivisions==0)
 			return;
 		hashmaps = std::vector< std::vector< std::vector<std::pair<DNA4,uint32_t> > > >(numberOfDivisions*arrangementsPerDivision);
@@ -267,9 +267,9 @@ class TargetContainer
 		putTargetsInHashmaps(targets);
 	}
 	//returns the optimum number of divisions to use, if it is not worth using divisions zero is returned
-	uint32_t optimumNumberOfDivisions()
+	uint32_t optimumNumberOfDivisions(uint64_t maxIndexSize)
 	{
-		std::cout << "Divisions\tdivisionSize\tmismatchesPerDivision\tarrangementsPerDivision\ttargetsPerBucket\ttotalWork"<<std::endl;
+		//std::cout << "Divisions\tdivisionSize\tmismatchesPerDivision\tarrangementsPerDivision\ttargetsPerBucket\ttotalWork\ttotalSize"<<std::endl;
 		//calculate the optimum division size
 		uint64_t minimumTotalWork = numberOfTargets;
 		uint32_t bestNumberOfDivisions = 0;
@@ -279,15 +279,16 @@ class TargetContainer
 			mismatchesPerDivision = mismatches/divisions;//round down
 			arrangementsPerDivision = nChooseK(divisionSize,mismatchesPerDivision);
 			bucketsPerArrangement = std::pow(4,divisionSize-mismatchesPerDivision);//where 4 is the size of the alphabet
+			uint64_t totalSize = arrangementsPerDivision*divisions*(bucketsPerArrangement*sizeof(std::vector<std::pair<DNA4,uint32_t> >) + numberOfTargets*(sizeof(std::pair<DNA4,uint32_t>)));
 			//overhead to generate a hash for each arrangement within each division is approximately = numberOfVariableChars
 			//each arrangement contains on average targets/bucketsPerArrangement
 			double totalWork = (numberOfVariableChars*10+numberOfTargets/bucketsPerArrangement)*(arrangementsPerDivision*divisions);
-			if(totalWork < minimumTotalWork)
+			if(totalWork < minimumTotalWork&&totalSize<maxIndexSize)
 			{
 				minimumTotalWork = totalWork;
 				bestNumberOfDivisions = divisions;
 			}
-			std::cout << divisions <<'\t'<< divisionSize <<'\t'<< mismatchesPerDivision <<'\t'<< arrangementsPerDivision <<'\t'<< numberOfTargets/bucketsPerArrangement <<'\t'<< totalWork << std::endl;
+			//std::cout << divisions <<'\t'<< divisionSize <<'\t'<< mismatchesPerDivision <<'\t'<< arrangementsPerDivision <<'\t'<< numberOfTargets/bucketsPerArrangement <<'\t'<< totalWork << '\t'<< totalSize << std::endl;
 		}
 		if(bestNumberOfDivisions==0)
 			return 0;
@@ -295,7 +296,7 @@ class TargetContainer
 		mismatchesPerDivision = mismatches/bestNumberOfDivisions;//round down
 		arrangementsPerDivision = nChooseK(divisionSize,mismatchesPerDivision);
 		bucketsPerArrangement = std::pow(4,divisionSize-mismatchesPerDivision);//where 4 is the size of the alphabet
-		std::cout << bestNumberOfDivisions << std::endl;
+		//std::cout << bestNumberOfDivisions << std::endl;
 		
 		return bestNumberOfDivisions;
 	}
@@ -505,7 +506,7 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 	return matches;
 }
 
-std::vector<std::vector<Location> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "")
+std::vector<std::vector<Location> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
 {
 	auto matches = std::vector<std::vector<Location>>(targetStrings.size());
 	if(targetStrings.size()==0||sequences.size()==0)
@@ -529,7 +530,7 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 	}
 	stop_watch s;
 	s.start();
-	TargetContainer targetContainer(DNA4TargetStrings, targetLengths, mismatches, filterSeq);
+	TargetContainer targetContainer(DNA4TargetStrings, targetLengths, mismatches, filterSeq, maxIndexSize);
 	if(!targetContainer)
 	{
 		return simpleMatch(sequences,targetStrings,targetLength,mismatches,requiredMatch);
