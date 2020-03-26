@@ -435,6 +435,7 @@ std::vector<std::vector<Location>> simpleMatch(const std::vector<std::string> &s
 	s.start();
 	std::cout << "Using simple method "<< std::endl;
 	uint_fast8_t minimumMatches = targets.at(0).getNumMatchableChars() - mismatches;
+	if(targets.at(0).getNumMatchableChars() < mismatches) minimumMatches = 0;//avoid underflow
 	//auto similarities = std::array<uint64_t,24>();
 	//similarities.fill(0);
 	int *matched1 = new int[targetStrings.size()/2+1];
@@ -538,6 +539,7 @@ std::vector<std::vector<Location> > match(const std::vector<std::string> &sequen
 	std::cout << "indexing targets took "<< s << std::endl;
 	s.start();
 	uint_fast8_t minimumMatches = DNA4TargetStrings.at(0).getNumMatchableChars() - mismatches;
+	if(DNA4TargetStrings.at(0).getNumMatchableChars() < mismatches) minimumMatches = 0;//avoid underflow
 	uint64_t comparisons = 0;
 	uint64_t naiveComparisons = 0;
 	for(size_t seqID = 0; seqID < sequences.size();++seqID)
