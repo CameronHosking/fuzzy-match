@@ -418,15 +418,17 @@ class TargetContainer
 
 };
 
-struct Location
+struct offtarget
 {
-	size_t seqID;
+	uint32_t seqID;
 	size_t positionInSeq;
-	bool operator!=(const Location &o) { return o.seqID!=seqID||o.positionInSeq!=positionInSeq;}
-	bool operator==(const Location &o) { return !operator!=(o);}
+	DNA4 offTargetSequence;
+	uint32_t mismatches;
+	bool operator!=(const offtarget &o) { return o.seqID!=seqID||o.positionInSeq!=positionInSeq;}
+	bool operator==(const offtarget &o) { return !operator!=(o);}
 };
 
-std::vector<std::vector<std::pair<Location,DNA4>>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
+std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
 	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
 	bool filterExists = requiredMatch.size() > 0;
@@ -434,7 +436,7 @@ std::vector<std::vector<std::pair<Location,DNA4>>> simpleMatch(const std::vector
 	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
 
 	auto targets = stringsToDNA4(targetStrings);
-	auto matches = std::vector<std::vector<std::pair<Location,DNA4>>>(targets.size());
+	auto matches = std::vector<std::vector<offtarget>>(targets.size());
 	if(targets.size()==0)
 	{
 		return matches;
@@ -457,7 +459,7 @@ std::vector<std::vector<std::pair<Location,DNA4>>> simpleMatch(const std::vector
 	int *matched1 = new int[targetStrings.size()/2+1];
 	int *matched2 = new int[targetStrings.size()/2+1];
 	uint64_t numComparisons = 0;
-	for(size_t seqID = 0; seqID < sequences.size();++seqID)
+	for(uint32_t seqID = 0; seqID < sequences.size();++seqID)
 	{
 		size_t sequenceLength = sequences[seqID].size();
 		const char * sequenceString = sequences[seqID].data();
@@ -503,12 +505,12 @@ std::vector<std::vector<std::pair<Location,DNA4>>> simpleMatch(const std::vector
 			}
 			for(int i = 0; i < numberOfMatches1;++i)
 			{
-				matches[matched1[i]].push_back(std::pair<Location,DNA4>(Location{seqID,currentPos},sequence));
+				matches[matched1[i]].push_back(offtarget{seqID,currentPos,sequence,targets[matched1[i]].getNumMatchableChars()-getSimilarity(sequence,targets[matched1[i]])});
 			}
 			
 			for(int i = 0; i < numberOfMatches2;++i)
 			{
-				matches[matched2[i]].push_back(std::pair<Location,DNA4>(Location{seqID,currentPos},sequence));
+				matches[matched2[i]].push_back(offtarget{seqID,currentPos,sequence,targets[matched2[i]].getNumMatchableChars()-getSimilarity(sequence,targets[matched2[i]])});
 			}
 			currentPos++;
 		}
@@ -521,9 +523,9 @@ std::vector<std::vector<std::pair<Location,DNA4>>> simpleMatch(const std::vector
 	return matches;
 }
 
-std::vector<std::vector<std::pair<Location,DNA4>> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
+std::vector<std::vector<offtarget> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
 {
-	auto matches = std::vector<std::vector<std::pair<Location,DNA4>>>(targetStrings.size());
+	auto matches = std::vector<std::vector<offtarget>>(targetStrings.size());
 	if(targetStrings.size()==0||sequences.size()==0)
 	{
 		return matches;
@@ -558,9 +560,9 @@ std::vector<std::vector<std::pair<Location,DNA4>> > match(const std::vector<std:
 	if(DNA4TargetStrings.at(0).getNumMatchableChars() < mismatches) minimumMatches = 0;//avoid underflow
 	uint64_t comparisons = 0;
 	uint64_t naiveComparisons = 0;
-	for(size_t seqID = 0; seqID < sequences.size();++seqID)
+	for(uint32_t seqID = 0; seqID < sequences.size();++seqID)
 	{
-		size_t sequenceLength = sequences[seqID].size();
+		uint32_t sequenceLength = sequences[seqID].size();
 		const char * sequenceString = sequences[seqID].data();
 		auto sequence = createDNA4(sequenceString,targetLengths-1);
 		size_t currentPos = targetLengths-1;
@@ -579,18 +581,20 @@ std::vector<std::vector<std::pair<Location,DNA4>> > match(const std::vector<std:
 			}
 			naiveComparisons += targetStrings.size();
 			targetContainer.getBuckets(sequence,bucketsArray);
-			for(uint32_t i = 0; i < targetContainer.numberOfHashmaps(); ++i)
+			for(size_t i = 0; i < targetContainer.numberOfHashmaps(); ++i)
 			{
 				TargetBucket bucket = bucketsArray[i];
 				comparisons += bucket.size;
 				for(uint32_t targetNum = 0; targetNum<bucket.size; targetNum++)
 				{
-					if(getSimilarity(sequence,bucket.begin_DNA[targetNum])>=minimumMatches)
+					uint32_t similarity = getSimilarity(sequence,bucket.begin_DNA[targetNum]);
+					if(similarity>=minimumMatches)
 					{
 						auto & targetMatches = matches[bucket.begin_position[targetNum]];
-						if(targetMatches.size()==0||targetMatches.back().first!=Location{seqID,currentPos})
+						//make sure we haven't added this match from another hashmap already
+						if(targetMatches.size()==0||targetMatches.back().positionInSeq!=currentPos||targetMatches.back().seqID!=seqID)
 						{
-							targetMatches.push_back(std::pair<Location,DNA4>(Location{seqID,currentPos},sequence));
+							targetMatches.push_back(offtarget{seqID,currentPos,sequence,bucket.begin_DNA[targetNum].getNumMatchableChars()-similarity});
 						}
 					}
 				}

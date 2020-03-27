@@ -59,6 +59,11 @@ int main()
 
 	delete[] sequence;
 	size_t totalMatches = 0;
+	uint32_t mismatchFrequencies[mismatches+1];
+	for(uint32_t i = 0; i < mismatches+1; ++i)
+	{
+		mismatchFrequencies[i] = 0;
+	}
 	for(size_t i = 0; i < matches.size(); ++i)
 	{
 		// std::cout << targetStrings[i] <<std::endl;
@@ -82,7 +87,15 @@ int main()
 		// 		//std::cout << matches1[0] << std::endl;
 		// 	}
 		// }
+		for(size_t j = 0; j < matches[i].size(); j++)
+		{
+			mismatchFrequencies[matches[i][j].mismatches]++;
+		}
 	 	totalMatches += matches[i].size();
+	}
+	for(uint32_t i = 0; i < mismatches+1; ++i)
+	{
+		std::cout << mismatchFrequencies[i] << " offtargets with distance " << i << std::endl;
 	}
 	std::cout << totalMatches << std::endl;
 	
