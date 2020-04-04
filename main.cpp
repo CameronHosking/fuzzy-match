@@ -28,6 +28,7 @@ int main()
 	constexpr size_t seqLength = 1000000;
 	constexpr size_t numTargets = 1000000;
 	constexpr size_t targetLength = 23;
+	DNA4::setLength(targetLength);
 	constexpr size_t mismatches = 2;
 	const std::string filter = "*XXXXXXX*XXXXXXXXXXGXG";
 	char * sequence = new char[seqLength+1];
@@ -55,7 +56,7 @@ int main()
 	}
 	std::vector<std::string> sequences;
 	sequences.push_back(std::string(sequence));
-	auto matches = match(sequences,targetStrings, targetLength,mismatches,filter);
+	auto matches = match(sequences,targetStrings,mismatches,filter,1500000000);
 
 	delete[] sequence;
 	size_t totalMatches = 0;

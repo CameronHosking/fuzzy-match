@@ -10,9 +10,91 @@
 #include <bitset>
 #include "stopwatch.h"
 
+constexpr uint64_t acs[256] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+								0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0x100000000ULL,0,1ULL,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0x100000000ULL,0,1ULL,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+								
+constexpr uint64_t gts[256] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+								0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0x100000000ULL,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0x100000000ULL,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 //represents up to a length 32 strand of DNA
 struct DNA4{
+
+
+
+	static void setLength(uint32_t length)
+	{
+		DNA4::length = length;
+		DNA4::lowLengthMask = (1ULL<<length)-1;
+		DNA4::highLengthMask = lowLengthMask << 32;
+		DNA4::fullMask = DNA4::lowLengthMask | DNA4::highLengthMask;
+	}
+
+	static uint32_t getLength(){return length;}
 	uint64_t ACandGT[2];
+
+	DNA4(const char *s)
+	{
+		uint64_t ac = 0;
+		uint64_t gt = 0;
+		unsigned char c;
+		// DNA4 ret{0,0};
+		// for(int i = 0; i < length; ++i)
+		// 	addCharacter(ret,s[i]);
+		// return ret;
+		switch(length)
+		{
+			case 32: {c = s[length-32]; ac |= acs[c] << 31; gt |= gts[c] << 31;}
+			case 31: {c = s[length-31]; ac |= acs[c] << 30; gt |= gts[c] << 30;}
+			case 30: {c = s[length-30]; ac |= acs[c] << 29; gt |= gts[c] << 29;}
+			case 29: {c = s[length-29]; ac |= acs[c] << 28; gt |= gts[c] << 28;} 
+			case 28: {c = s[length-28]; ac |= acs[c] << 27; gt |= gts[c] << 27;}
+			case 27: {c = s[length-27]; ac |= acs[c] << 26; gt |= gts[c] << 26;}
+			case 26: {c = s[length-26]; ac |= acs[c] << 25; gt |= gts[c] << 25;}
+			case 25: {c = s[length-25]; ac |= acs[c] << 24; gt |= gts[c] << 24;}
+			case 24: {c = s[length-24]; ac |= acs[c] << 23; gt |= gts[c] << 23;}
+			case 23: {c = s[length-23]; ac |= acs[c] << 22; gt |= gts[c] << 22;}
+			case 22: {c = s[length-22]; ac |= acs[c] << 21; gt |= gts[c] << 21;}
+			case 21: {c = s[length-21]; ac |= acs[c] << 20; gt |= gts[c] << 20;}
+			case 20: {c = s[length-20]; ac |= acs[c] << 19; gt |= gts[c] << 19;}
+			case 19: {c = s[length-19]; ac |= acs[c] << 18; gt |= gts[c] << 18;}
+			case 18: {c = s[length-18]; ac |= acs[c] << 17; gt |= gts[c] << 17;}
+			case 17: {c = s[length-17]; ac |= acs[c] << 16; gt |= gts[c] << 16;}
+			case 16: {c = s[length-16]; ac |= acs[c] << 15; gt |= gts[c] << 15;}
+			case 15: {c = s[length-15]; ac |= acs[c] << 14; gt |= gts[c] << 14;}
+			case 14: {c = s[length-14]; ac |= acs[c] << 13; gt |= gts[c] << 13;}
+			case 13: {c = s[length-13]; ac |= acs[c] << 12; gt |= gts[c] << 12;}
+			case 12: {c = s[length-12]; ac |= acs[c] << 11; gt |= gts[c] << 11;}
+			case 11: {c = s[length-11]; ac |= acs[c] << 10; gt |= gts[c] << 10;}
+			case 10: {c = s[length-10]; ac |= acs[c] << 9; gt |= gts[c] << 9;}
+			case 9: {c = s[length-9]; ac |= acs[c] << 8; gt |= gts[c] << 8;}
+			case 8: {c = s[length-8]; ac |= acs[c] << 7; gt |= gts[c] << 7;}
+			case 7: {c = s[length-7]; ac |= acs[c] << 6; gt |= gts[c] << 6;}
+			case 6: {c = s[length-6]; ac |= acs[c] << 5; gt |= gts[c] << 5;}
+			case 5: {c = s[length-5]; ac |= acs[c] << 4; gt |= gts[c] << 4;}
+			case 4: {c = s[length-4]; ac |= acs[c] << 3; gt |= gts[c] << 3;}
+			case 3: {c = s[length-3]; ac |= acs[c] << 2; gt |= gts[c] << 2;}
+			case 2: {c = s[length-2]; ac |= acs[c] << 1; gt |= gts[c] << 1;}
+			case 1: {c = s[length-1]; ac |= acs[c]; gt |= gts[c];}
+		}
+		ACandGT[0] = ac;
+		ACandGT[1] = gt;
+	}
+
+	DNA4()
+	:ACandGT{0,0}
+	{}
+	
 	const uint64_t& operator[](size_t i) const {return ACandGT[i];}
 	uint64_t& operator[](size_t i){return ACandGT[i];}
 	bool operator==(const DNA4 & o) const
@@ -33,10 +115,15 @@ struct DNA4{
 	bool operator>=(const DNA4 &o)const{return !operator<(o);}
 	bool operator<=(const DNA4 &o)const{return !operator>(o);}
 	bool operator!=(const DNA4 &o)const{return !operator==(o);}
-	uint32_t As(uint32_t length) const {return __builtin_popcountll(ACandGT[1]>>32&&((1ULL<<length)-1));}
-	uint32_t Cs(uint32_t length) const {return __builtin_popcountll(ACandGT[0]<<(64-length));}
-	uint32_t Gs(uint32_t length) const {return __builtin_popcountll(ACandGT[1]>>32&&((1ULL<<length)-1));}
-	uint32_t Ts(uint32_t length) const {return __builtin_popcountll(ACandGT[1]<<(64-length));}
+	uint32_t numAs() const {return __builtin_popcountll(ACandGT[0]&highLengthMask);}
+	uint32_t numCs() const {return __builtin_popcountll(ACandGT[0]&lowLengthMask);}
+	uint32_t numGs() const {return __builtin_popcountll(ACandGT[1]&highLengthMask);}
+	uint32_t numTs() const {return __builtin_popcountll(ACandGT[1]&lowLengthMask);}
+
+	uint32_t As() const {return ACandGT[0]>>32&lowLengthMask;}
+	uint32_t Cs() const {return ACandGT[0]&lowLengthMask;}
+	uint32_t Gs() const {return ACandGT[1]>>32&lowLengthMask;}
+	uint32_t Ts() const {return ACandGT[1]&lowLengthMask;}
 
 	//removes characters that are in a marked position in mask
 	//eg if this = ACCGG and mask = __GG_ 
@@ -49,7 +136,18 @@ struct DNA4{
 		ACandGT[1] &= mask;		
 	}
 
-	void addWildcards(const char *s, uint_fast8_t length, char wildcardChar)
+	bool addCharacter(unsigned char c)
+	{
+		ACandGT[0] <<= 1;
+		ACandGT[1] <<= 1;
+		uint64_t mask = (~(1ULL|(1ULL<<32)))&DNA4::fullMask;
+		ACandGT[0] &= mask;
+		ACandGT[1] &= mask;
+		ACandGT[0] |= acs[c];
+		ACandGT[1] |= gts[c];
+		return true;
+	}
+	void addWildcards(const char *s, char wildcardChar)
 	{
 		uint64_t wildcardPositions=0;
 		for(uint_fast8_t i = 0; i < length; i++)
@@ -70,12 +168,47 @@ struct DNA4{
 	{
 		return __builtin_popcount(uint32_t((ACandGT[0]>>32)|(ACandGT[1]>>32)|ACandGT[0]|ACandGT[1]));
 	}
-	bool matchableCharacterAtPosition(uint32_t i,uint_fast8_t length) const
+	bool matchableCharacterAtPosition(uint32_t i) const
 	{
 		uint64_t mask = (1ULL|(1ULL<<32)<<(length-i-1));
 		return (ACandGT[0]|ACandGT[1])&mask;
 	}
+
+	std::string toString()
+	{
+		std::string s(DNA4::length,'N');
+		for(uint_fast8_t i=0;i<DNA4::length;i++)
+		{
+			if((ACandGT[0]>>(32+i))&1)
+			{
+				s[DNA4::length-i-1] = 'A';
+			}
+			else if((ACandGT[0]>>i)&1)
+			{
+				s[DNA4::length-i-1] = 'C';
+			}
+			else if((ACandGT[1]>>(32+i))&1)
+			{
+				s[DNA4::length-i-1] = 'G';
+			}
+			else if((ACandGT[1]>>i)&1)
+			{
+				s[DNA4::length-i-1] = 'T';
+			}
+		}
+		return s;
+	}
+	private:
+	static uint_fast8_t length;
+	static uint64_t lowLengthMask;
+	static uint64_t highLengthMask;
+	static uint64_t fullMask;
 };
+
+uint64_t DNA4::highLengthMask = ~0ULL;
+uint64_t DNA4::lowLengthMask = ~0ULL;
+uint64_t DNA4::fullMask = ~0ULL;
+uint_fast8_t DNA4::length = 0;
 
 template<uint32_t pow>
 uint32_t pow2()
@@ -125,130 +258,83 @@ std::vector<std::vector<T>> getAllCombinations(T* begin, uint32_t n, uint32_t k)
 	return allCombinations;
 }
 
-constexpr uint64_t acs[256] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-								0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0x100000000ULL,0,1ULL,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0x100000000ULL,0,1ULL,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-								
-constexpr uint64_t gts[256] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-								0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0x100000000ULL,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0x100000000ULL,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
-
-void addCharacter(DNA4 &s, unsigned char c)
-{
- 	s[0] <<= 1;
-	s[1] <<= 1;
-	s[0] &= ~(1ULL|(1ULL<<32));
-	s[1] &= ~(1ULL|(1ULL<<32));
-	s[0] |= acs[c];
-	s[1] |= gts[c];
-}
-
 uint32_t getSimilarity(const DNA4 &a,const DNA4 &b)
 {
 	return __builtin_popcountll ((a[0]&b[0])|(a[1]&b[1]));
 }
 
-DNA4 createDNA4(const char *s, uint_fast8_t length)
-{
-	uint64_t ac = 0;
-	uint64_t gt = 0;
-	unsigned char c;
-	// DNA4 ret{0,0};
-	// for(int i = 0; i < length; ++i)
-	// 	addCharacter(ret,s[i]);
-	// return ret;
-	switch(length)
-	{
-		case 32: {c = s[length-32]; ac |= acs[c] << 31; gt |= gts[c] << 31;}
-		case 31: {c = s[length-31]; ac |= acs[c] << 30; gt |= gts[c] << 30;}
-		case 30: {c = s[length-30]; ac |= acs[c] << 29; gt |= gts[c] << 29;}
-		case 29: {c = s[length-29]; ac |= acs[c] << 28; gt |= gts[c] << 28;} 
-		case 28: {c = s[length-28]; ac |= acs[c] << 27; gt |= gts[c] << 27;}
-		case 27: {c = s[length-27]; ac |= acs[c] << 26; gt |= gts[c] << 26;}
-		case 26: {c = s[length-26]; ac |= acs[c] << 25; gt |= gts[c] << 25;}
-		case 25: {c = s[length-25]; ac |= acs[c] << 24; gt |= gts[c] << 24;}
-		case 24: {c = s[length-24]; ac |= acs[c] << 23; gt |= gts[c] << 23;}
-		case 23: {c = s[length-23]; ac |= acs[c] << 22; gt |= gts[c] << 22;}
-		case 22: {c = s[length-22]; ac |= acs[c] << 21; gt |= gts[c] << 21;}
-		case 21: {c = s[length-21]; ac |= acs[c] << 20; gt |= gts[c] << 20;}
-		case 20: {c = s[length-20]; ac |= acs[c] << 19; gt |= gts[c] << 19;}
-		case 19: {c = s[length-19]; ac |= acs[c] << 18; gt |= gts[c] << 18;}
-		case 18: {c = s[length-18]; ac |= acs[c] << 17; gt |= gts[c] << 17;}
-		case 17: {c = s[length-17]; ac |= acs[c] << 16; gt |= gts[c] << 16;}
-		case 16: {c = s[length-16]; ac |= acs[c] << 15; gt |= gts[c] << 15;}
-		case 15: {c = s[length-15]; ac |= acs[c] << 14; gt |= gts[c] << 14;}
-		case 14: {c = s[length-14]; ac |= acs[c] << 13; gt |= gts[c] << 13;}
-		case 13: {c = s[length-13]; ac |= acs[c] << 12; gt |= gts[c] << 12;}
-		case 12: {c = s[length-12]; ac |= acs[c] << 11; gt |= gts[c] << 11;}
-		case 11: {c = s[length-11]; ac |= acs[c] << 10; gt |= gts[c] << 10;}
-		case 10: {c = s[length-10]; ac |= acs[c] << 9; gt |= gts[c] << 9;}
-		case 9: {c = s[length-9]; ac |= acs[c] << 8; gt |= gts[c] << 8;}
-		case 8: {c = s[length-8]; ac |= acs[c] << 7; gt |= gts[c] << 7;}
-		case 7: {c = s[length-7]; ac |= acs[c] << 6; gt |= gts[c] << 6;}
-		case 6: {c = s[length-6]; ac |= acs[c] << 5; gt |= gts[c] << 5;}
-		case 5: {c = s[length-5]; ac |= acs[c] << 4; gt |= gts[c] << 4;}
-		case 4: {c = s[length-4]; ac |= acs[c] << 3; gt |= gts[c] << 3;}
-		case 3: {c = s[length-3]; ac |= acs[c] << 2; gt |= gts[c] << 2;}
-		case 2: {c = s[length-2]; ac |= acs[c] << 1; gt |= gts[c] << 1;}
-		case 1: {c = s[length-1]; ac |= acs[c]; gt |= gts[c];}
-	}
-	return DNA4{ac,gt};
-}
 std::vector<DNA4> stringsToDNA4(const std::vector<std::string> &targetStrings)
 {
 	std::vector<DNA4> targets;
 	targets.reserve(targetStrings.size());
 	for(std::string s: targetStrings)
 	{
-		targets.push_back(createDNA4(s.c_str(),s.size()));
+		targets.push_back(DNA4(s.c_str()));
 	}
 	return targets;
 }
 
-std::string DNA4ToString(const DNA4 &a, uint_fast8_t length)
-{
-	std::string s(length,'_');
-	for(uint_fast8_t i=0;i<length;i++)
-	{
-		if((a[0]>>(32+i))&1)
-		{
-			s[length-i-1] = 'A';
-		}
-		else if((a[0]>>i)&1)
-		{
-			s[length-i-1] = 'C';
-		}
-		else if((a[1]>>(32+i))&1)
-		{
-			s[length-i-1] = 'G';
-		}
-		else if((a[1]>>i)&1)
-		{
-			s[length-i-1] = 'T';
-		}
-	}
-	return s;
-}
 class DNA4Set
-{
-	public:
-	DNA4Set(uint32_t targetLength, const DNA4 &filter = DNA4{0,0})
-	:numTargets(0),buckets(nullptr),mask(0),offset(0)
 	{
-		DNA4::setLengthMask(targetLength);
+	public:
+	DNA4Set(const DNA4 &filter = DNA4())
+	:numTargets(0),buckets(nullptr),mask(0),offset(0)
+		{
 		//find postion and size of longest run of variable characters
-		calculateGoodFilter(targetLength,filter);
+		calculateGoodFilter(filter);
 		buckets = new std::vector<DNA4>[mask+1];
+		}
+
+	DNA4Set(const DNA4Set& o)
+	:numTargets(o.numTargets),buckets(new std::vector<DNA4>[o.mask+1]),mask(o.mask),offset(o.offset)
+		{
+		copyBuckets(o);
+		}
+ 
+	// Move constructor
+	DNA4Set(DNA4Set&& o)
+	:numTargets(o.numTargets),buckets(o.buckets),mask(o.mask),offset(o.offset)
+		{
+		o.buckets = nullptr; 
+		}
+ 
+	// Copy assignment
+	DNA4Set& operator=(const DNA4Set& o)
+	{
+		// Self-assignment detection
+		if (&o == this)
+			return *this;
+ 
+		//if we need a different number of buckets
+		if(mask!=o.mask)
+		{
+			delete[] buckets;
+			mask = o.mask;
+			buckets = new std::vector<DNA4>[o.mask+1];
+	}
+		numTargets = o.numTargets;
+		offset = o.offset;
+		copyBuckets(o);
+
+		return *this;
+}
+ 
+	// Move assignment
+	DNA4Set& operator=(DNA4Set&& o)
+	{
+		// Self-assignment detection
+		if (&o == this)
+			return *this;
+ 
+		delete[] buckets;
+
+		numTargets = o.numTargets;
+		buckets = o.buckets;
+		o.buckets = nullptr;
+		mask = o.mask;
+		offset = o.offset;
+
+		return *this;
 	}
 
 	~DNA4Set()
@@ -314,12 +400,21 @@ class DNA4Set
 	}
 
 	private:
+
+	inline void copyBuckets(const DNA4Set& o)
+	{
+		for(uint32_t i = 0; i < mask+1;++i)
+		{
+			buckets[i] = o.buckets[i];
+		}
+	}
+
 	inline std::vector<DNA4> & getBucket(const DNA4 & target)
 	{
 		return buckets[((target[0]|target[1])>>offset)&mask];
 	}
 
-	void calculateGoodFilter(uint32_t targetLength, const DNA4 &filter)
+	void calculateGoodFilter(const DNA4 &filter)
 	{
 		std::cout << std::bitset<64>(filter[0]) << std::endl;
 		std::cout << std::bitset<64>(filter[1]) << std::endl;
@@ -335,7 +430,7 @@ class DNA4Set
 		uint32_t equallyVariablePositions = (~((H1^L1) | (H2^L2) | (H1^H2))) |
 											((H1^H2) & (L1^L2));
 		std::cout << std::bitset<32>(equallyVariablePositions) << std::endl;
-		for(uint32_t i = 0;i < targetLength;++i)
+		for(uint32_t i = 0;i < DNA4::getLength();++i)
 		{
 			if(equallyVariablePositions&(1ULL<<i))
 			{
@@ -372,10 +467,10 @@ struct TargetBucket
 class TargetContainer
 {
 	public:
-	TargetContainer(const std::vector<DNA4> &targets, uint32_t targetLength, uint32_t mismatches, const DNA4 &filter = DNA4{0,0}, uint64_t maxIndexSize = ~0ULL)
-	:stringLength(targetLength),buckets_DNA4(nullptr),buckets_positions(nullptr),bucketsForLastHash(nullptr),numberOfVariableChars(stringLength - filter.getNumMatchableChars()),mismatches(mismatches),numberOfTargets(targets.size())
+	TargetContainer(const std::vector<DNA4> &targets, uint32_t mismatches, const DNA4 &filter = DNA4(), uint64_t maxIndexSize = ~0ULL)
+	:buckets_DNA4(nullptr),buckets_positions(nullptr),bucketsForLastHash(nullptr),numberOfVariableChars(DNA4::getLength() - filter.getNumMatchableChars()),mismatches(mismatches),numberOfTargets(targets.size())
 	{
-		if(filter == DNA4{0,0}) 
+		if(filter == DNA4()) 
 			hasFilter = false;
 		numberOfDivisions = optimumNumberOfDivisions(maxIndexSize);
 		if(numberOfDivisions==0)
@@ -447,9 +542,9 @@ class TargetContainer
 		uint32_t ithMatchableCharacter = 0;
 		for(uint32_t i = 0; i < numberOfVariableChars;++i)
 		{
-			if(!filter.matchableCharacterAtPosition(ithMatchableCharacter,stringLength))
+			if(!filter.matchableCharacterAtPosition(ithMatchableCharacter))
 			{
-				positions[i] = stringLength - ithMatchableCharacter - 1;
+				positions[i] = DNA4::getLength() - ithMatchableCharacter - 1;
 			}
 			else
 			{
@@ -518,8 +613,6 @@ class TargetContainer
 	operator bool(){return numberOfDivisions!=0;}
 
 	private:
-	uint32_t stringLength;
-	//std::vector<std::pair<DNA4,uint32_t> > *buckets;
 	std::vector<DNA4> *buckets_DNA4;
 	std::vector<uint32_t> *buckets_positions;
 	mutable uint32_t * bucketsForLastHash;
@@ -550,11 +643,11 @@ struct offtarget
 	bool operator==(const offtarget &o) { return !operator!=(o);}
 };
 
-std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLengths, uint_fast8_t mismatches, std::string requiredMatch = "")
+std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t mismatches, std::string requiredMatch = "")
 {
-	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
+	DNA4 filterSeq = DNA4(requiredMatch.data());
 	bool filterExists = requiredMatch.size() > 0;
-	filterSeq.addWildcards(requiredMatch.data(),requiredMatch.size(),'*');
+	filterSeq.addWildcards(requiredMatch.data(),'*');
 	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
 
 	auto targets = stringsToDNA4(targetStrings);
@@ -584,21 +677,20 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 	for(uint32_t seqID = 0; seqID < sequences.size();++seqID)
 	{
 		size_t sequenceLength = sequences[seqID].size();
+		if(sequenceLength < DNA4::getLength())
+			continue;
 		const char * sequenceString = sequences[seqID].data();
-		auto sequence = createDNA4(sequenceString,targetLengths-1);
-		size_t currentPos = targetLengths-1;
-		while(currentPos < sequenceLength)
-		{
+		auto sequence = DNA4(sequenceString);
+		size_t currentPos = DNA4::getLength()-1;
+		do{
 			int numberOfMatches1 = 0;
 			int numberOfMatches2 = 0;
 			//add next character
-			addCharacter(sequence,sequenceString[currentPos]);
 			
 			if(filterExists)
 			{
 				if(getSimilarity(sequence,filterSeq)<numFilterChars)
 				{
-					currentPos++;
 					continue;
 				}
 			}
@@ -634,8 +726,8 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 			{
 				matches[matched2[i]].push_back(offtarget{seqID,currentPos,sequence,targets[matched2[i]].getNumMatchableChars()-getSimilarity(sequence,targets[matched2[i]])});
 			}
-			currentPos++;
-		}
+
+		}while(++currentPos < sequenceLength&&sequence.addCharacter(sequenceString[currentPos]));
 	}
 
 	delete[] matched1;
@@ -645,17 +737,16 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 	return matches;
 }
 
-std::vector<std::vector<offtarget> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t targetLength, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
+std::vector<std::vector<offtarget> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
 {
 	auto matches = std::vector<std::vector<offtarget>>(targetStrings.size());
 	if(targetStrings.size()==0||sequences.size()==0)
 	{
 		return matches;
 	}
-	uint_fast8_t targetLengths = targetStrings[0].size();
 
-	DNA4 filterSeq = createDNA4(requiredMatch.data(),requiredMatch.size());
-	filterSeq.addWildcards(requiredMatch.data(),requiredMatch.size(),'*');
+	DNA4 filterSeq = DNA4(requiredMatch.data());
+	filterSeq.addWildcards(requiredMatch.data(),'*');
 	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
 
 	auto DNA4TargetStrings = stringsToDNA4(targetStrings);
@@ -669,10 +760,10 @@ std::vector<std::vector<offtarget> > match(const std::vector<std::string> &seque
 	}
 	stop_watch s;
 	s.start();
-	TargetContainer targetContainer(DNA4TargetStrings, targetLengths, mismatches, filterSeq, maxIndexSize);
+	TargetContainer targetContainer(DNA4TargetStrings, mismatches, filterSeq, maxIndexSize);
 	if(!targetContainer)
 	{
-		return simpleMatch(sequences,targetStrings,targetLength,mismatches,requiredMatch);
+		return simpleMatch(sequences,targetStrings,mismatches,requiredMatch);
 	}
 	TargetBucket * bucketsArray = new TargetBucket[targetContainer.numberOfHashmaps()];
 	s.stop();
@@ -685,19 +776,17 @@ std::vector<std::vector<offtarget> > match(const std::vector<std::string> &seque
 	for(uint32_t seqID = 0; seqID < sequences.size();++seqID)
 	{
 		uint32_t sequenceLength = sequences[seqID].size();
+		if(sequenceLength < DNA4::getLength())
+			continue;
 		const char * sequenceString = sequences[seqID].data();
-		auto sequence = createDNA4(sequenceString,targetLengths-1);
-		size_t currentPos = targetLengths-1;
-		while(currentPos < sequenceLength)
+		auto sequence = DNA4(sequenceString);
+		size_t currentPos = DNA4::getLength() - 1;
+		do
 		{
-			//add next character
-			addCharacter(sequence,sequenceString[currentPos]);
-			
 			if(filterExists)
 			{
 				if(getSimilarity(sequence,filterSeq)<numFilterChars)
 				{
-					currentPos++;
 					continue;
 				}
 			}
@@ -721,8 +810,7 @@ std::vector<std::vector<offtarget> > match(const std::vector<std::string> &seque
 					}
 				}
 			}
-			currentPos++;
-		}
+		}while(++currentPos < sequenceLength&&sequence.addCharacter(sequenceString[currentPos]));
 	}
 	s.stop();
 	std::cout<< "comparisons took " << s << std::endl;
