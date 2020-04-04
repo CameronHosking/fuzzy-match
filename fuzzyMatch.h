@@ -239,6 +239,128 @@ std::string DNA4ToString(const DNA4 &a, uint_fast8_t length)
 	}
 	return s;
 }
+class DNA4Set
+{
+	public:
+	DNA4Set(uint32_t targetLength, const DNA4 &filter = DNA4{0,0})
+	:numTargets(0),buckets(nullptr),mask(0),offset(0)
+	{
+		DNA4::setLengthMask(targetLength);
+		//find postion and size of longest run of variable characters
+		calculateGoodFilter(targetLength,filter);
+		buckets = new std::vector<DNA4>[mask+1];
+	}
+
+	~DNA4Set()
+	{
+		delete[] buckets;
+	}
+
+	bool exists(DNA4 target)
+	{
+		std::vector<DNA4> & bucket = getBucket(target);
+		for(uint32_t i = 0; i < bucket.size();++i)
+		{
+			if(bucket[i]==target)
+				return true;
+		}
+		return false;
+	}
+
+	bool insert(DNA4 target)
+	{
+		std::vector<DNA4> & bucket = getBucket(target);
+		for(uint32_t i = 0; i < bucket.size();++i)
+		{
+			if(bucket[i]==target)
+				return false;
+		}
+		numTargets++;
+		bucket.push_back(target);
+		return true;
+	}
+
+	bool remove(DNA4 target)
+	{
+		std::vector<DNA4> & bucket = getBucket(target);
+		for(uint32_t i = 0; i < bucket.size();++i)
+		{
+			if(bucket[i]==target)
+			{
+				numTargets--;
+				bucket.erase(bucket.begin()+i);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	size_t size() const {return numTargets;}
+
+	std::vector<DNA4> getAllTargets() const
+	{
+		std::vector<DNA4> targets(numTargets);
+		size_t total = 0;
+		for(uint32_t b = 0; b < mask+1; ++b)
+		{
+			auto &bucket = buckets[b];
+			for(uint32_t i = 0; i < bucket.size(); ++i)
+			{
+				targets[total] = bucket[i];
+				total++;
+			}
+		}
+		return targets;
+	}
+
+	private:
+	inline std::vector<DNA4> & getBucket(const DNA4 & target)
+	{
+		return buckets[((target[0]|target[1])>>offset)&mask];
+	}
+
+	void calculateGoodFilter(uint32_t targetLength, const DNA4 &filter)
+	{
+		std::cout << std::bitset<64>(filter[0]) << std::endl;
+		std::cout << std::bitset<64>(filter[1]) << std::endl;
+		std::cout << std::bitset<64>(filter.Gs()) << std::endl;
+		int longestRun = 0;
+		int endOfLongestRun = 0;
+		int start = -1;
+		uint32_t H1 = filter.As();
+		uint32_t H2 = filter.Gs();
+		uint32_t L1 = filter.Cs();
+		uint32_t L2 = filter.Ts();
+		//all are the same or both sets of highs and lows are different
+		uint32_t equallyVariablePositions = (~((H1^L1) | (H2^L2) | (H1^H2))) |
+											((H1^H2) & (L1^L2));
+		std::cout << std::bitset<32>(equallyVariablePositions) << std::endl;
+		for(uint32_t i = 0;i < targetLength;++i)
+		{
+			if(equallyVariablePositions&(1ULL<<i))
+			{
+				if(i-start > longestRun)
+				{
+					endOfLongestRun = i;
+					longestRun = i-start;
+				}
+			}
+			else
+			{
+				start=i;
+			}
+		}
+		offset = endOfLongestRun-longestRun + 1;
+		longestRun = std::min(longestRun,20);
+		mask = (1ULL << longestRun)-1;
+		std::cout << endOfLongestRun << '\t' << longestRun << '\t' << offset << std::endl;
+	}
+
+	size_t numTargets;
+	std::vector<DNA4> * buckets;
+	uint64_t mask;
+	uint32_t offset;
+};
 
 struct TargetBucket
 {
