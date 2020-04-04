@@ -173,7 +173,10 @@ struct DNA4{
 		uint64_t mask = (1ULL|(1ULL<<32)<<(length-i-1));
 		return (ACandGT[0]|ACandGT[1])&mask;
 	}
-
+	uint32_t getSimilarity(const DNA4 &b) const
+	{
+		return __builtin_popcountll ((ACandGT[0]&b[0])|(ACandGT[1]&b[1]));
+	}
 	std::string toString()
 	{
 		std::string s(DNA4::length,'N');
@@ -256,11 +259,6 @@ std::vector<std::vector<T>> getAllCombinations(T* begin, uint32_t n, uint32_t k)
         allCombinations.push_back(combination);
     } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
 	return allCombinations;
-}
-
-uint32_t getSimilarity(const DNA4 &a,const DNA4 &b)
-{
-	return __builtin_popcountll ((a[0]&b[0])|(a[1]&b[1]));
 }
 
 std::vector<DNA4> stringsToDNA4(const std::vector<std::string> &targetStrings)
@@ -689,7 +687,7 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 			
 			if(filterExists)
 			{
-				if(getSimilarity(sequence,filterSeq)<numFilterChars)
+				if(sequence.getSimilarity(filterSeq)<numFilterChars)
 				{
 					continue;
 				}
@@ -698,12 +696,12 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 			//compare all the targets with this sequence
 			for(size_t i = 0; i < targets.size()-1;i+=2)
 			{
-				if(getSimilarity(sequence,targets[i])>=minimumMatches)
+				if(sequence.getSimilarity(targets[i])>=minimumMatches)
 				{
 					matched1[numberOfMatches1] = i;
 					numberOfMatches1++;
 				}
-				if(getSimilarity(sequence,targets[i+1])>=minimumMatches)
+				if(sequence.getSimilarity(targets[i+1])>=minimumMatches)
 				{
 					matched2[numberOfMatches2] = i+1;
 					numberOfMatches2++;
@@ -711,7 +709,7 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 			}
 			if(targets.size()%2)
 			{
-				if(getSimilarity(sequence,targets[targets.size()-1])>=minimumMatches)
+				if(sequence.getSimilarity(targets[targets.size()-1])>=minimumMatches)
 				{
 					matched1[numberOfMatches1] = targets.size()-1;
 					numberOfMatches1++;
@@ -719,12 +717,12 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 			}
 			for(int i = 0; i < numberOfMatches1;++i)
 			{
-				matches[matched1[i]].push_back(offtarget{seqID,currentPos,sequence,targets[matched1[i]].getNumMatchableChars()-getSimilarity(sequence,targets[matched1[i]])});
+				matches[matched1[i]].push_back(offtarget{seqID,currentPos,sequence,targets[matched1[i]].getNumMatchableChars()-sequence.getSimilarity(targets[matched1[i]])});
 			}
 			
 			for(int i = 0; i < numberOfMatches2;++i)
 			{
-				matches[matched2[i]].push_back(offtarget{seqID,currentPos,sequence,targets[matched2[i]].getNumMatchableChars()-getSimilarity(sequence,targets[matched2[i]])});
+				matches[matched2[i]].push_back(offtarget{seqID,currentPos,sequence,targets[matched2[i]].getNumMatchableChars()-sequence.getSimilarity(targets[matched2[i]])});
 			}
 
 		}while(++currentPos < sequenceLength&&sequence.addCharacter(sequenceString[currentPos]));
@@ -785,7 +783,7 @@ std::vector<std::vector<offtarget> > match(const std::vector<std::string> &seque
 		{
 			if(filterExists)
 			{
-				if(getSimilarity(sequence,filterSeq)<numFilterChars)
+				if(sequence.getSimilarity(filterSeq)<numFilterChars)
 				{
 					continue;
 				}
@@ -798,7 +796,7 @@ std::vector<std::vector<offtarget> > match(const std::vector<std::string> &seque
 				comparisons += bucket.size;
 				for(uint32_t targetNum = 0; targetNum<bucket.size; targetNum++)
 				{
-					uint32_t similarity = getSimilarity(sequence,bucket.begin_DNA[targetNum]);
+					uint32_t similarity = sequence.getSimilarity(bucket.begin_DNA[targetNum]);
 					if(similarity>=minimumMatches)
 					{
 						auto & targetMatches = matches[bucket.begin_position[targetNum]];
