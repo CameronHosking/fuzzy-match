@@ -319,28 +319,30 @@ std::vector<DNA4> stringsToDNA4(const std::vector<std::string> &targetStrings)
 }
 
 class DNA4Set
-	{
+{
 	public:
+	//the internal hash function used is based upon the filter
+	//inserting targets that do not pass the filter will be less efficient but still correct
 	DNA4Set(Filter filter = std::string())
 	:numTargets(0),buckets(nullptr),mask(0),offset(0)
-		{
+	{
 		//find postion and size of longest run of variable characters
 		calculateGoodFilter(filter.asDNA4());
 		buckets = new std::vector<DNA4>[mask+1];
-		}
+	}
 
 	DNA4Set(const DNA4Set& o)
 	:numTargets(o.numTargets),buckets(new std::vector<DNA4>[o.mask+1]),mask(o.mask),offset(o.offset)
-		{
+	{
 		copyBuckets(o);
-		}
+	}
  
 	// Move constructor
 	DNA4Set(DNA4Set&& o)
 	:numTargets(o.numTargets),buckets(o.buckets),mask(o.mask),offset(o.offset)
-		{
+	{
 		o.buckets = nullptr; 
-		}
+	}
  
 	// Copy assignment
 	DNA4Set& operator=(const DNA4Set& o)
@@ -355,13 +357,13 @@ class DNA4Set
 			delete[] buckets;
 			mask = o.mask;
 			buckets = new std::vector<DNA4>[o.mask+1];
-	}
+		}
 		numTargets = o.numTargets;
 		offset = o.offset;
 		copyBuckets(o);
 
 		return *this;
-}
+	}
  
 	// Move assignment
 	DNA4Set& operator=(DNA4Set&& o)
@@ -386,7 +388,7 @@ class DNA4Set
 		delete[] buckets;
 	}
 
-	bool exists(DNA4 target)
+	bool contains(DNA4 target)
 	{
 		std::vector<DNA4> & bucket = getBucket(target);
 		for(uint32_t i = 0; i < bucket.size();++i)
@@ -476,9 +478,10 @@ class DNA4Set
 		std::cout << std::bitset<32>(equallyVariablePositions) << std::endl;
 		for(uint32_t i = 0;i < DNA4::getLength();++i)
 		{
+			//this is another variable position
 			if(equallyVariablePositions&(1ULL<<i))
 			{
-				if(i-start > longestRun)
+				if(int(i-start) > longestRun)
 				{
 					endOfLongestRun = i;
 					longestRun = i-start;
@@ -713,7 +716,7 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 			//add next character
 			
 			if(!filter.passes(sequence))
-					continue;
+				continue;
 			numComparisons+= targets.size();
 			//compare all the targets with this sequence
 			for(size_t i = 0; i < targets.size()-1;i+=2)
@@ -758,7 +761,7 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 }
 
 std::vector<std::vector<offtarget> > matchWithIndex(const std::vector<std::string> &sequences, TargetContainer &targetContainer, uint_fast8_t minSimilarity,Filter filter)
-		{
+{
 	
 	uint64_t comparisons = 0;
 	uint64_t naiveComparisons = 0;
@@ -777,7 +780,7 @@ std::vector<std::vector<offtarget> > matchWithIndex(const std::vector<std::strin
 		do
 		{
 			if(!filter.passes(sequence))
-					continue;
+				continue;
 			naiveComparisons += targetContainer.numberOfTargets();
 			targetContainer.getBuckets(sequence,bucketsArray);
 			for(size_t i = 0; i < targetContainer.numberOfHashmaps(); ++i)
@@ -838,5 +841,73 @@ std::vector<std::vector<offtarget> > match(const std::vector<std::string> &seque
 		std::cout << "Using simple method"<< std::endl;
 		return simpleMatch(sequences,targets,minimumMatches,filter);
 	}
+}
+
+struct AddToSet{
+	DNA4Set &s;
+	AddToSet(DNA4Set & set)
+	:s(set){}
+	void doAction(DNA4 &t){s.insert(t);}
+};
+
+struct RemoveFromSet{
+	DNA4Set &s;
+	RemoveFromSet(DNA4Set & set)
+	:s(set){}
+	void doAction(DNA4 &t){s.insert(t);}
+};
+
+struct AddToSetIfExistingInOtherSet{
+	DNA4Set &s;
+	DNA4Set &otherSet;
+	AddToSetIfExistingInOtherSet(DNA4Set &set, DNA4Set &otherSet)
+	:s(set),otherSet(otherSet){}
+	void doAction(DNA4 &t)
+	{
+		if(otherSet.contains(t))
+			s.insert(t);
+	}
+};
+
+template<class Action>
+void doForTargetsInSequence(const std::string &sequence, Filter filter, Action &&action)
+{
+	uint32_t sequenceLength = sequence.size();
+	if(sequenceLength<DNA4::getLength()) 
+		return;
+
+	const char * sequenceString = sequence.data();
+	auto sequenceDNA4 = DNA4(sequenceString);
+	size_t currentPos = DNA4::getLength()-1;
+	do
+	{
+		//check that it matches the filter
+		if(filter.passes(sequenceDNA4))
+		{
+			action.doAction(sequenceDNA4);
+		}
+	}while(++currentPos < sequenceLength&&sequenceDNA4.addCharacter(sequenceString[currentPos]));
+}
+
+void addToSetIfExistingInOtherSet(const std::string &sequence, DNA4Set & set, DNA4Set & otherSet, Filter filter)
+{
+	doForTargetsInSequence(sequence,filter,AddToSetIfExistingInOtherSet(set,otherSet));
+}
+
+void removeTargetsinSequenceFromSet(const std::string &sequence,DNA4Set & targetSet, Filter filter)
+{
+	doForTargetsInSequence(sequence,filter,RemoveFromSet(targetSet));
+}
+
+void addTargetsInSequenceToSet(const std::string &sequence,DNA4Set & targetSet, Filter filter)
+{
+	doForTargetsInSequence(sequence,filter,AddToSet(targetSet));
+}
+
+DNA4Set getTargetsInSequence(const std::string &sequence, Filter filter)
+{
+	DNA4Set d(filter);
+	addTargetsInSequenceToSet(sequence,d,filter);
+	return d;
 }
 
