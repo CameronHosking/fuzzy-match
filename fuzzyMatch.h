@@ -890,3 +890,36 @@ void doForTargetsInSequence(const std::string &sequence, Filter filter, Action &
 		}
 	}while(++currentPos < sequenceLength&&sequenceDNA4.addCharacter(sequenceString[currentPos]));
 }
+
+template<class Action>
+void doForTargetsInSequence(std::istream &seqStream, Filter filter, Action &&action)
+{
+	constexpr size_t buffSize = 4096;
+	char buf[buffSize+1];
+
+	seqStream.read(buf,buffSize);
+	if(seqStream.gcount()<DNA4::getLength())
+		return;
+	buf[seqStream.gcount()] = '\0';
+	DNA4 sequenceDNA4 = DNA4(buf);
+	size_t currentPos = 0;
+	char *c = &buf[DNA4::getLength()-1];
+	do
+	{	
+		do
+		{
+			//check that it matches the filter
+			if(filter.passes(sequenceDNA4))
+			{
+				action.doAction(sequenceDNA4,currentPos);
+			}
+			currentPos++;
+		}while(*(++c)&&sequenceDNA4.addCharacter(*c));
+		c = buf;
+		seqStream.read(buf,buffSize);
+		buf[seqStream.gcount()] = '\0';
+		//adds character since this was skipped above via short circuiting
+		//if gcount is 0 null will be added but we exit if this is the case anyway
+		sequenceDNA4.addCharacter(*c);
+	} while (seqStream.gcount()>0);
+}
