@@ -48,10 +48,7 @@ struct DNA4{
 		uint64_t ac = 0;
 		uint64_t gt = 0;
 		unsigned char c;
-		// DNA4 ret{0,0};
-		// for(int i = 0; i < length; ++i)
-		// 	addCharacter(ret,s[i]);
-		// return ret;
+
 		switch(length)
 		{
 			case 32: {c = s[length-32]; ac |= acs[c] << 31; gt |= gts[c] << 31;}
@@ -212,6 +209,55 @@ uint64_t DNA4::highLengthMask = ~0ULL;
 uint64_t DNA4::lowLengthMask = ~0ULL;
 uint64_t DNA4::fullMask = ~0ULL;
 uint_fast8_t DNA4::length = 0;
+
+class Filter
+{
+	public:
+	Filter(std::string s)
+	:filterSeq((std::string(DNA4::getLength()-s.size(),'x')+s).data()),numFilterChars(0)
+	{
+		if(s.size()==0)
+			return;
+		if(s.size()!=DNA4::getLength())
+		{
+			std::cout << "WARNING: filter string \'" << s << "\' is " << s.size() << " characters. Target length is " << DNA4::getLength() << " characters." << std::endl;
+			if(s.size() < DNA4::getLength())
+			{
+				std::cout << "Pad string to the complete length." << std::endl;
+				std::cout << "eg "<< std::string(DNA4::getLength()-s.size(),'x') << s << " if the filter is at the end of the target," << std::endl;
+				std::cout << "or "<< s << std::string(DNA4::getLength()-s.size(),'x') << " if the filter is at the start of the target," << std::endl;
+			}
+			else
+			{
+				std::cout << "Remember to set the length of targets by calling DNA4::setLength(val) before calling any other functions." << std::endl;
+			}
+		}
+		filterSeq.addWildcards(s.data(),'*');
+		numFilterChars = filterSeq.getNumMatchableChars();
+	}
+
+	bool passes(const DNA4 & seq) const
+	{
+		return filterSeq.getSimilarity(seq)==numFilterChars;
+	}
+
+	//adds filter characters to target in the positions where filter has matchable characters
+	void addFilterCharsToTarget(DNA4 & seq) const
+	{
+		seq[0]|=filterSeq[0];
+		seq[1]|=filterSeq[1];
+	}
+
+	bool exists() const {return numFilterChars;}
+
+	uint32_t numberOfFilterChars() const {return numFilterChars;}
+
+	DNA4 asDNA4() const {return filterSeq;}
+
+	private:
+	DNA4 filterSeq;
+	uint_fast8_t numFilterChars;
+};
 
 template<uint32_t pow>
 uint32_t pow2()
@@ -465,11 +511,10 @@ struct TargetBucket
 class TargetContainer
 {
 	public:
-	TargetContainer(const std::vector<DNA4> &targets, uint32_t mismatches, const DNA4 &filter = DNA4(), uint64_t maxIndexSize = ~0ULL)
-	:buckets_DNA4(nullptr),buckets_positions(nullptr),bucketsForLastHash(nullptr),numberOfVariableChars(DNA4::getLength() - filter.getNumMatchableChars()),mismatches(mismatches),numberOfTargets(targets.size())
+	TargetContainer(const std::vector<DNA4> &targets, uint32_t mismatches, Filter filter, uint64_t maxIndexSize = ~0ULL)
+	:buckets_DNA4(nullptr),buckets_positions(nullptr),bucketsForLastHash(nullptr),numberOfVariableChars(DNA4::getLength() - filter.numberOfFilterChars()),mismatches(mismatches),numberOfTargets(targets.size())
 	{
-		if(filter == DNA4()) 
-			hasFilter = false;
+		hasFilter = filter.exists();
 		numberOfDivisions = optimumNumberOfDivisions(maxIndexSize);
 		if(numberOfDivisions==0)
 			return;
@@ -478,7 +523,7 @@ class TargetContainer
 		buckets_positions = new std::vector<uint32_t>[totalBuckets];
 		//buckets = new std::vector<std::pair<DNA4,uint32_t> >[totalBuckets];
 		bucketsForLastHash = new uint32_t[totalHashmaps];
-		createHashHelpers(numberOfDivisions,filter);
+		createHashHelpers(numberOfDivisions,filter.asDNA4());
 		putTargetsInHashmaps(targets);
 		buckets_DNA4 = new std::vector<DNA4>[totalBuckets];
 		for(uint i = 0; i < totalBuckets;++i)
@@ -586,7 +631,7 @@ class TargetContainer
 				uint32_t pos = relevantPositions[j];
 				hash <<= 2;
 				//only uses 3 of the four character of the alphabet, the fourth is represented by 0's
-				//this will hash strings that contain none alphabet characters as if the had the 4th character there instead
+				//this will hash strings that contain non alphabet characters as if the had the 4th character there instead
 				hash |= ((chars[0]>>pos)&1UL) | ((chars[1]>>pos)&1UL)*2 | ((chars[2]>>pos)&1UL)*3;
 			}
 			bucketsForLastHash[i] = bucketsPerArrangement*i + hash;
@@ -641,34 +686,27 @@ struct offtarget
 	bool operator==(const offtarget &o) { return !operator!=(o);}
 };
 
-std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t mismatches, std::string requiredMatch = "")
+std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t mismatches, Filter filter)
 {
-	DNA4 filterSeq = DNA4(requiredMatch.data());
-	bool filterExists = requiredMatch.size() > 0;
-	filterSeq.addWildcards(requiredMatch.data(),'*');
-	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
-
-	auto targets = stringsToDNA4(targetStrings);
-	auto matches = std::vector<std::vector<offtarget>>(targets.size());
-	if(targets.size()==0)
+	auto matches = std::vector<std::vector<offtarget>>(targetStrings.size());
+	if(targetStrings.size()==0)
 	{
 		return matches;
 	}
-	
-	if(filterExists)
+	auto targets = stringsToDNA4(targetStrings);
+	if(filter.exists())
 	{
 		for(DNA4 &t: targets)
 		{
-			t.subtractMask(filterSeq);
+			filter.addFilterCharsToTarget(t);
 		}
 	}
 	stop_watch s;
 	s.start();
 	std::cout << "Using simple method "<< std::endl;
-	uint_fast8_t minimumMatches = targets.at(0).getNumMatchableChars() - mismatches;
-	if(targets.at(0).getNumMatchableChars() < mismatches) minimumMatches = 0;//avoid underflow
-	//auto similarities = std::array<uint64_t,24>();
-	//similarities.fill(0);
+	uint_fast8_t minimumMatches = DNA4::getLength() -  mismatches;
+	if(DNA4::getLength() < mismatches) minimumMatches = 0;//avoid underflow
+
 	int *matched1 = new int[targetStrings.size()/2+1];
 	int *matched2 = new int[targetStrings.size()/2+1];
 	uint64_t numComparisons = 0;
@@ -685,13 +723,8 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 			int numberOfMatches2 = 0;
 			//add next character
 			
-			if(filterExists)
-			{
-				if(sequence.getSimilarity(filterSeq)<numFilterChars)
-				{
+			if(!filter.passes(sequence))
 					continue;
-				}
-			}
 			numComparisons+= targets.size();
 			//compare all the targets with this sequence
 			for(size_t i = 0; i < targets.size()-1;i+=2)
@@ -735,40 +768,34 @@ std::vector<std::vector<offtarget>> simpleMatch(const std::vector<std::string> &
 	return matches;
 }
 
-std::vector<std::vector<offtarget> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t mismatches, std::string requiredMatch = "", uint64_t maxIndexSize = ~0ULL)
+std::vector<std::vector<offtarget> > match(const std::vector<std::string> &sequences, const std::vector<std::string> &targetStrings, uint_fast8_t mismatches,Filter filter, uint64_t maxIndexSize = ~0ULL)
 {
 	auto matches = std::vector<std::vector<offtarget>>(targetStrings.size());
-	if(targetStrings.size()==0||sequences.size()==0)
+	if(targetStrings.size()==0)
 	{
 		return matches;
 	}
-
-	DNA4 filterSeq = DNA4(requiredMatch.data());
-	filterSeq.addWildcards(requiredMatch.data(),'*');
-	uint_fast8_t numFilterChars = filterSeq.getNumMatchableChars();
-
-	auto DNA4TargetStrings = stringsToDNA4(targetStrings);
-	bool filterExists = numFilterChars>0;
-	if(filterExists)
+	auto targets = stringsToDNA4(targetStrings);
+	if(filter.exists())
 	{
-		for(DNA4 &t: DNA4TargetStrings)
+		for(DNA4 &t: targets)
 		{
-			t.subtractMask(filterSeq);
+			filter.addFilterCharsToTarget(t);
 		}
 	}
 	stop_watch s;
 	s.start();
-	TargetContainer targetContainer(DNA4TargetStrings, mismatches, filterSeq, maxIndexSize);
+	TargetContainer targetContainer(targets, mismatches, filter, maxIndexSize);
 	if(!targetContainer)
 	{
-		return simpleMatch(sequences,targetStrings,mismatches,requiredMatch);
+		return simpleMatch(sequences,targetStrings,mismatches,filter);
 	}
 	TargetBucket * bucketsArray = new TargetBucket[targetContainer.numberOfHashmaps()];
 	s.stop();
 	std::cout << "indexing targets took "<< s << std::endl;
 	s.start();
-	uint_fast8_t minimumMatches = DNA4TargetStrings.at(0).getNumMatchableChars() - mismatches;
-	if(DNA4TargetStrings.at(0).getNumMatchableChars() < mismatches) minimumMatches = 0;//avoid underflow
+	uint_fast8_t minimumMatches = DNA4::getLength() -  mismatches;
+	if(DNA4::getLength() < mismatches) minimumMatches = 0;//avoid underflow
 	uint64_t comparisons = 0;
 	uint64_t naiveComparisons = 0;
 	for(uint32_t seqID = 0; seqID < sequences.size();++seqID)
@@ -781,13 +808,8 @@ std::vector<std::vector<offtarget> > match(const std::vector<std::string> &seque
 		size_t currentPos = DNA4::getLength() - 1;
 		do
 		{
-			if(filterExists)
-			{
-				if(sequence.getSimilarity(filterSeq)<numFilterChars)
-				{
+			if(!filter.passes(sequence))
 					continue;
-				}
-			}
 			naiveComparisons += targetStrings.size();
 			targetContainer.getBuckets(sequence,bucketsArray);
 			for(size_t i = 0; i < targetContainer.numberOfHashmaps(); ++i)
