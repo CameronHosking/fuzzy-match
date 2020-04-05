@@ -29,8 +29,8 @@ int main()
 	constexpr size_t numTargets = 1000000;
 	constexpr size_t targetLength = 23;
 	DNA4::setLength(targetLength);
-	constexpr size_t mismatches = 2;
-	const std::string filter = "*XXXXXXX*XXXXXXXXXXGXG";
+	constexpr size_t mismatches = 4;
+	const std::string filterString = "x*XXXXXXX*XXXXXXXXXXGXG";
 	char * sequence = new char[seqLength+1];
 	for(size_t i = 0; i < seqLength; ++i)
 	{
@@ -45,18 +45,46 @@ int main()
 		for(uint_fast8_t j = 0; j < targetLength;++j)
 			target += randNucleotide();
 		//targets will always have the filter
-		for(int j = (int)filter.size()-1; j >= 0;j--)
+		for(int j = (int)filterString.size()-1; j >= 0;j--)
 		{
-			if((filter[j]=='A')|(filter[j]=='C')|(filter[j]=='G')|(filter[j]=='T'))
+			if((filterString[j]=='A')|(filterString[j]=='C')|(filterString[j]=='G')|(filterString[j]=='T'))
 			{
-				target[j]=filter[j];
+				target[j]=filterString[j];
 			}
 		}
 		targetStrings.push_back(target);
+		
 	}
+	stop_watch s;
+	Filter filter(filterString);
+	DNA4Set d(filter);
+	DNA4Set newSet(filter);
+
+	s.start();
+	doForTargetsInSequence(sequence,filter,AddToSet(d));
+	s.stop();
+	std::cout << "inserted " << d.size() << " targets in "<< s << std::endl;
+	s.start();
+	doForTargetsInSequence(sequence,filter,AddToSetIfExistingInOtherSet(newSet,d));
+	s.stop();
+	std::cout << "found and inserted " << newSet.size() << " targets in "<< s <<  std::endl;
+	s.start();
+	uint32_t size = d.size();
+	doForTargetsInSequence(sequence,filter,RemoveFromSet(d));
+	s.stop();
+	std::cout << "removed " << size - d.size() << " targets in "<< s << " " << d.size() << " remain"<< std::endl;
+
 	std::vector<std::string> sequences;
 	sequences.push_back(std::string(sequence));
-	auto matches = match(sequences,targetStrings,mismatches,filter,1500000000);
+	s.start();
+	OffTargetFinder offTargetFinder(newSet.getAllTargets(),mismatches,filter,1500000000);
+	s.stop();
+	std::cout << "finished indexing in " << s <<std::endl;
+	s.start();
+	doForTargetsInSequence(sequence,filter,FindIfOffTarget(offTargetFinder,0));
+	s.stop();
+	std::cout << "comparisons took " << s <<std::endl;
+	auto offTargets = offTargetFinder.getOffTargets();
 
 	delete[] sequence;
 	size_t totalMatches = 0;
@@ -65,7 +93,7 @@ int main()
 	{
 		mismatchFrequencies[i] = 0;
 	}
-	for(size_t i = 0; i < matches.size(); ++i)
+	for(size_t i = 0; i < offTargets.size(); ++i)
 	{
 		// std::cout << targetStrings[i] <<std::endl;
 		// for(int j = 0; j < matches[i].size();j++)
@@ -88,11 +116,11 @@ int main()
 		// 		//std::cout << matches1[0] << std::endl;
 		// 	}
 		// }
-		for(size_t j = 0; j < matches[i].size(); j++)
+		for(size_t j = 0; j < offTargets[i].second.size(); j++)
 		{
-			mismatchFrequencies[matches[i][j].mismatches]++;
+			mismatchFrequencies[offTargets[i].second[j].mismatches]++;
 		}
-	 	totalMatches += matches[i].size();
+	 	totalMatches += offTargets[i].second.size();
 	}
 	for(uint32_t i = 0; i < mismatches+1; ++i)
 	{
