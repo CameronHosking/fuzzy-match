@@ -150,7 +150,6 @@ struct DNA4{
 	}
 	void addWildcards(const char *s)
 	{
-		uint64_t wildcardPositions=0;
 		uint64_t ACs = 0;
 		uint64_t GTs = 0;
 		for(uint_fast8_t i = 0; i < length; i++)
