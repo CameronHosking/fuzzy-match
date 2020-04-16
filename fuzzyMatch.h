@@ -146,7 +146,7 @@ struct DNA4{
 		ACandGT[1] &= mask;
 		ACandGT[0] |= acs[c];
 		ACandGT[1] |= gts[c];
-		return true;
+		return c;
 	}
 	void addWildcards(const char *s, char wildcardChar)
 	{
@@ -873,22 +873,33 @@ struct AddToSetIfExistingInOtherSet{
 };
 
 template<class Action>
-void doForTargetsInSequence(const std::string &sequence, Filter filter, Action &&action)
+void doForTargetsInSequence(const char * sequence, Filter filter, Action &&action)
 {
-	uint32_t sequenceLength = sequence.size();
-	if(sequenceLength<DNA4::getLength()) 
+	for(size_t i = 0; i < DNA4::getLength();++i)
+	{
+		if(sequence[i]=='\0')
+		{
 		return;
-	const char * sequenceString = sequence.data();
-	DNA4 sequenceDNA4 = DNA4(sequenceString);
-	size_t currentPos = DNA4::getLength()-1;
+		}
+	}
+	DNA4 sequenceDNA4 = DNA4(sequence);
+	sequence+=DNA4::getLength();
+	size_t currentPos = 0;
 	do
 	{
 		//check that it matches the filter
 		if(filter.passes(sequenceDNA4))
 		{
-			action.doAction(sequenceDNA4,currentPos-(DNA4::getLength()-1));
+			action.doAction(sequenceDNA4,currentPos);
 		}
-	}while(++currentPos < sequenceLength&&sequenceDNA4.addCharacter(sequenceString[currentPos]));
+		++currentPos;
+	}while(sequenceDNA4.addCharacter(*(sequence++)));
+		}
+
+template<class Action>
+void doForTargetsInSequence(const std::string &sequence, Filter filter, Action &&action)
+{
+	doForTargetsInSequence(sequence.data(),filter,action);
 }
 
 template<class Action>
