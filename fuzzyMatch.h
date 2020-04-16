@@ -148,21 +148,85 @@ struct DNA4{
 		ACandGT[1] |= gts[c];
 		return c;
 	}
-	void addWildcards(const char *s, char wildcardChar)
+	void addWildcards(const char *s)
 	{
 		uint64_t wildcardPositions=0;
+		uint64_t ACs = 0;
+		uint64_t GTs = 0;
 		for(uint_fast8_t i = 0; i < length; i++)
 		{
-			wildcardPositions <<= 1;
-			if(s[i]==wildcardChar)
+			ACs <<= 1;
+			GTs <<= 1;
+			switch(s[i])
 			{
-				wildcardPositions |= 1ULL;
+				case 'M':
+				{
+					ACs |= acs['A'] | acs['C'];
+					break;
+				}
+				case 'R':
+				{
+					ACs |= acs['A'];
+					GTs |= gts['G'];
+					break;
+				}
+				case 'W':
+				{
+					ACs |= acs['A'];
+					GTs |= gts['T'];
+					break;
+				}
+				case 'S':
+				{
+					ACs |= acs['C'];
+					GTs |= gts['G'];
+					break;
+				}
+				case 'Y':
+				{
+					ACs |= acs['C'];
+					GTs |= gts['T'];
+					break;
+				}
+				case 'K':
+				{
+					GTs |= gts['G'] | gts['T'];
+					break;
+				}
+				case 'V':
+				{
+					ACs |= acs['A'] | acs['C'];
+					GTs |= gts['G'];
+					break;
+				}
+				case 'H':
+				{
+					ACs |= acs['A'] | acs['C'];
+					GTs |= gts['T'];
+					break;
+				}
+				case 'D':
+				{
+					ACs |= acs['A'];
+					GTs |= gts['G'] | gts['T'];
+					break;
+				}
+				case 'B':
+				{
+					ACs |= acs['C'];
+					GTs |= gts['G'] | gts['T'];
+					break;
+				}
+				case 'N':
+			{
+					ACs |= acs['A'] | acs['C'];
+					GTs |= gts['G'] | gts['T'];
+					break;
+				}			
 			}
 		}
-		//duplicate over the two 32 bit sections of the 64bit
-		wildcardPositions = wildcardPositions | (wildcardPositions << 32);
-		ACandGT[0] |= wildcardPositions;
-		ACandGT[1] |= wildcardPositions;
+		ACandGT[0] |= ACs;
+		ACandGT[1] |= GTs;
 	}
 	
 	uint_fast8_t getNumMatchableChars() const
@@ -236,7 +300,7 @@ class Filter
 				std::cout << "Remember to set the length of targets by calling DNA4::setLength(val) before calling any other functions." << std::endl;
 			}
 		}
-		filterSeq.addWildcards(s.data(),'*');
+		filterSeq.addWildcards(s.data());
 		numFilterChars = filterSeq.getNumMatchableChars();
 	}
 
