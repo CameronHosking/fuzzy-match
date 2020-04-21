@@ -77,14 +77,14 @@ int main()
 	std::vector<std::string> sequences;
 	sequences.push_back(std::string(sequence));
 	s.start();
-	OffTargetFinder offTargetFinder(newSet.getAllTargets(),mismatches,filter,1500000000);
+	OffTargetFinder offTargetFinder(stringsToDNA4(targetStrings),mismatches,filter,1500000000);
 	s.stop();
 	std::cout << "finished indexing in " << s <<std::endl;
 	s.start();
 	doForTargetsInSequence(sequence,filter,FindIfOffTarget(offTargetFinder,0));
 	s.stop();
 	std::cout << "comparisons took " << s <<std::endl;
-	auto offTargets = offTargetFinder.getOffTargets();
+	auto &offTargets = offTargetFinder.getOffTargets();
 
 	delete[] sequence;
 	size_t totalMatches = 0;
@@ -116,11 +116,15 @@ int main()
 		// 		//std::cout << matches1[0] << std::endl;
 		// 	}
 		// }
-		for(size_t j = 0; j < offTargets[i].second.size(); j++)
+		for(uint m = 0; m <= mismatches; m++)
 		{
-			mismatchFrequencies[offTargets[i].second[j].mismatches]++;
+			for(size_t j = 0; j < offTargets[i][m].size(); j++)
+		{
+				mismatchFrequencies[m]++;
+			}
+			totalMatches += offTargets[i][m].size();
 		}
-	 	totalMatches += offTargets[i].second.size();
+
 	}
 	for(uint32_t i = 0; i < mismatches+1; ++i)
 	{

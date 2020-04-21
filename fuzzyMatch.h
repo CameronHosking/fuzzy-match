@@ -748,21 +748,63 @@ class OffTargetFinder
 		uint32_t totalHashmaps;
 	};
 	public:
-	struct offtarget
+	struct Position
 	{
 		uint32_t seqID;
-		size_t positionInSeq;
+		uint32_t positionInSeq;
+		bool operator!=(const Position& o)const{return seqID!=o.seqID||positionInSeq!=o.positionInSeq;}
+		bool operator==(const Position& o)const {return (*this)!=o;}
+	};
+
+	struct OffTarget
+	{
+		Position position;
 		DNA4 offTargetSequence;
-		uint32_t mismatches;
 		bool exactMatchTo(DNA4 t)const {return offTargetSequence.getSimilarity(t)==DNA4::getLength();}
-		bool operator!=(const offtarget &o) { return o.seqID!=seqID||o.positionInSeq!=positionInSeq;}
-		bool operator==(const offtarget &o) { return !operator!=(o);}
+		bool operator!=(const OffTarget &o)const { return o.position!=position||offTargetSequence!=o.offTargetSequence;}
+		bool operator==(const OffTarget &o)const { return (*this)!=o;}
 		std::string asString() const {return offTargetSequence.toString();}
 	};
 
+	struct OffTargetContainer
+	{
+		DNA4 target;
+		std::vector<OffTarget> * offtargets;
+		OffTargetContainer()
+			:offtargets(nullptr)
+		{}
+		OffTargetContainer(DNA4 target, int mismatches)
+		:target(target),offtargets(new std::vector<OffTarget>[mismatches+1])
+		{}
+		~OffTargetContainer()
+		{
+			delete[] offtargets;
+		}
+		std::vector<OffTarget> &operator[](int index)
+		{
+			return offtargets[index];
+		}
+		std::vector<OffTarget> &getOffTargets(int distance)
+		{
+			return offtargets[distance];
+		}
+		std::vector<Position> getPositionsOfTarget()
+		{
+			std::vector<Position> p;
+			for(OffTarget ot:offtargets[0])
+			{
+				if(ot.exactMatchTo(target))
+				{
+					p.push_back(ot.position);
+				}
+			}
+			return p;
+		}
+
+	};
+
 	OffTargetFinder(const std::vector<DNA4> &targets, uint_fast8_t mismatches, Filter filter, uint64_t maxIndexSize = ~0ULL)
-	:offTargets(targets.size()),
-		targetContainer(mismatches,filter),
+	:	targetContainer(mismatches,filter),
 		targets(targets),
 		matched1(nullptr),matched2(nullptr),
 		bucketsArray(nullptr)
@@ -771,9 +813,10 @@ class OffTargetFinder
 		{
 			return;
 		}
+		offTargets.reserve(targets.size());
 		for(uint32_t i = 0; i < targets.size();i++)
 		{
-			offTargets[i].first = targets[i];
+			offTargets.emplace_back(targets[i],mismatches);
 		}
 		if(filter.exists())
 		{
@@ -818,13 +861,13 @@ class OffTargetFinder
 		}
 	}
 
-	std::vector<std::pair<DNA4,std::vector<offtarget>>> & getOffTargets()
+	std::vector<OffTargetContainer> & getOffTargets()
 	{
 		return offTargets;
 	}
 
 	private:
-	void findMatchesWithIndex(DNA4 & seq, size_t position, uint32_t seqID)
+	void findMatchesWithIndex(DNA4 & seq, uint32_t position, uint32_t seqID)
 	{
 		//naiveComparisons += targetContainer.numberOfTargets();
 		targetContainer.getBuckets(seq,bucketsArray);
@@ -839,18 +882,20 @@ class OffTargetFinder
 				if(similarity>=minSimilarity)
 				{
 					//std::cout << similarity <<std::endl;
-					auto & targetMatches = offTargets[bucket.begin_position[targetNum]].second;
+					uint32_t mismatch = DNA4::getLength()-similarity;
+					auto & targetMatches = offTargets[bucket.begin_position[targetNum]][mismatch];
+					OffTarget ot = OffTarget{{seqID,position},seq};
 					//make sure we haven't added this match from another hashmap already
-					if(targetMatches.size()==0||targetMatches.back().positionInSeq!=position||targetMatches.back().seqID!=seqID)
+					if(targetMatches.size()==0||targetMatches.back()!=ot)
 					{
-						targetMatches.push_back(offtarget{seqID,position,seq, DNA4::getLength()-similarity});
+						targetMatches.push_back(ot);
 					}
 				}
 			}
 		}
 	}
 
-	void findMatchesSimple(DNA4 & seq, size_t position, uint32_t seqID)
+	void findMatchesSimple(DNA4 & seq, uint32_t position, uint32_t seqID)
 	{
 		int numberOfMatches1 = 0;
 		int numberOfMatches2 = 0;
@@ -880,15 +925,17 @@ class OffTargetFinder
 
 		for(int i = 0; i < numberOfMatches1;++i)
 		{
-			offTargets[matched1[i]].second.push_back(offtarget{seqID,position,seq,DNA4::getLength()-seq.getSimilarity(targets[matched1[i]])});
+			uint32_t mismatch = DNA4::getLength()-seq.getSimilarity(targets[matched1[i]]);
+			offTargets[matched1[i]][mismatch].push_back(OffTarget{{seqID,position},seq});
 		}	
 		for(int i = 0; i < numberOfMatches2;++i)
 		{
-			offTargets[matched2[i]].second.push_back(offtarget{seqID,position,seq,DNA4::getLength()-seq.getSimilarity(targets[matched2[i]])});
+			uint32_t mismatch = DNA4::getLength()-seq.getSimilarity(targets[matched2[i]]);
+			offTargets[matched2[i]][mismatch].push_back(OffTarget{{seqID,position},seq});
 		}
 	}
 
-	std::vector<std::pair<DNA4,std::vector<offtarget>>> offTargets;
+	std::vector<OffTargetContainer> offTargets;
 	TargetContainer targetContainer;
 	std::vector<DNA4> targets;
 	uint32_t * matched1;
@@ -903,7 +950,7 @@ struct FindIfOffTarget{
 	FindIfOffTarget(OffTargetFinder &offTargetFinder,uint32_t sequenceID)
 	:offTargetFinder(offTargetFinder),sequenceID(sequenceID)
 	{}
-	void doAction(DNA4 &t,size_t position)
+	void doAction(DNA4 &t,uint32_t position)
 	{
 		offTargetFinder.findMatches(t,position,sequenceID);
 	}
@@ -913,14 +960,14 @@ struct AddToSet{
 	DNA4Set &s;
 	AddToSet(DNA4Set & set)
 	:s(set){}
-	void doAction(DNA4 &t,size_t){s.insert(t);}
+	void doAction(DNA4 &t,uint32_t){s.insert(t);}
 };
 
 struct RemoveFromSet{
 	DNA4Set &s;
 	RemoveFromSet(DNA4Set & set)
 	:s(set){}
-	void doAction(DNA4 &t,size_t){s.remove(t);}
+	void doAction(DNA4 &t,uint32_t){s.remove(t);}
 };
 
 struct AddToSetIfExistingInOtherSet{
@@ -928,7 +975,7 @@ struct AddToSetIfExistingInOtherSet{
 	DNA4Set &otherSet;
 	AddToSetIfExistingInOtherSet(DNA4Set &set, DNA4Set &otherSet)
 	:s(set),otherSet(otherSet){}
-	void doAction(DNA4 &t,size_t)
+	void doAction(DNA4 &t,uint32_t)
 	{
 		if(otherSet.contains(t))
 			s.insert(t);
