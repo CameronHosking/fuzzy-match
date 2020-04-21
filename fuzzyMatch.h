@@ -791,7 +791,7 @@ class OffTargetFinder
 		std::vector<Position> getPositionsOfTarget()
 		{
 			std::vector<Position> p;
-			for(OffTarget ot:offtargets[0])
+			for(OffTarget &ot:offtargets[0])
 			{
 				if(ot.exactMatchTo(target))
 				{
