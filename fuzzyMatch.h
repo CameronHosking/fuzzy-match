@@ -524,7 +524,7 @@ public:
 	DNA4Set(Filter filter = std::string())
 		: numTargets(0), buckets(nullptr), mask(0), offset(0) {
 		//find postion and size of longest run of variable characters
-		calculateGoodFilter(filter.asDNA4());
+		determineBitsToHash(filter.asDNA4());
 		buckets = new std::vector<DNA4>[mask + 1];
 	}
 
@@ -637,7 +637,7 @@ private:
 		return buckets[((target[0] | target[1]) >> offset) & mask];
 	}
 
-	void calculateGoodFilter(const DNA4& filter) {
+	void determineBitsToHash(const DNA4& filter) {
 		int longestRun = 0;
 		int endOfLongestRun = 0;
 		int start = -1;
