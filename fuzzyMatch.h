@@ -381,7 +381,7 @@ struct DNA4
 		return __builtin_popcount(uint32_t((ACandGT[0] >> 32) | (ACandGT[1] >> 32) | ACandGT[0] | ACandGT[1]));
 	}
 	bool matchableCharacterAtPosition(uint32_t i) const {
-		uint64_t mask = (1ULL | (1ULL << 32) << (length - i - 1));
+		uint64_t mask = (1ULL | (1ULL << 32)) << (length - i - 1);
 		return (ACandGT[0] | ACandGT[1]) & mask;
 	}
 	uint32_t getSimilarity(const DNA4& b) const {
