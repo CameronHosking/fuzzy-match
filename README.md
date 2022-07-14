@@ -74,11 +74,11 @@ We do not not need to zero off the left side of seq because the targets will hav
 Repeat steps 3 and 4 until the sequence is consumed. 
 
 If we let sequence length be S, number of targets be T and length of targets be L:
-The total number of required instructions is around ST * (4 + if check on similarity + loop overhead). (Cost of the IF is usually hidden as a rare branch)
+The total number of required instructions is around ST \* (4 + if check on similarity + loop overhead). (Cost of the IF is usually hidden as a rare branch)
 This assumes that ST >> S+LT such that the cost of converting to DNA4 representation is amortized.
 
 ## Optimizations
-Although this is fast it is still a brute force solution of checking every possible target against every possible position in the sequence. This is impractical with large datasets where S*T may be orders of magnitude over a trillion.
+Although this is fast it is still a brute force solution of checking every possible target against every possible position in the sequence. This is impractical with large datasets where S\*T may be orders of magnitude over a trillion.
 
 Imagine a case where L = 30
 In a perfect matching case we could simply store the targets hashed by say their first 10 characters then for each position in seq we only need to check the targets with the same leading hash. This would decrease the number of comparisons by a factor 4^10, ~ 1 millionth of the comparisons.
@@ -87,14 +87,14 @@ Consider instead the case where we allow a mismatch, so we may have a mismatch i
 
 However what if we allowed several mismatches, say, up to M where M < L.
 We require M+1 segments to guarantee that one is a perfect match. The buckets must not overlap so the size of the buckets must be floor(L/(M+1)), for example if L is 30 and M is 7 the bucket size would be 3. In this case each bucket would have the 4^3 times fewer targets in them but we would need to check 10 buckets for a total speed up over the brute force solution of just over 6. 
-So the total number of comparisons required would be S*floor(L/(M+1))/(4^floor(L/(M+1))).
+So the total number of comparisons required would be S\*floor(L/(M+1))/(4^floor(L/(M+1))).
 
 What if we allow mismatches within each division. If in the above example we instead divide the target into 4 segments then there necessarily must be a segment with 1 or fewer mismatches present. If we make 7 hash maps for each segment, each with a different character left out then one of THOSE hashes must be a perfect match, the hash consists of 6 characters so only contains T/(4^6) targets. This leads to checking 28 total hashmaps but each bucket only contains T/4096 targets. A speed up of 146 over the brute force solution.
 
 There is nothing special about allowing only 1 mismatch within each division. In the general case if we split L into N divisions (N<=L) then the size of each division D is floor(L/N), the minimum number of mismatches present in a division K is floor(M/N), and so the target reduction factor is 4^(D-K), the total number of hashmaps is the number of divisions times the number of ways the required mismatches can be removed (D choose K).
 So the total average number of targets to check is calculated as following:
 
-T_compared = T*N*(floor(L/N) choose floor(M/N))/(4^(floor(L/N)-floor(M/N)))
+T_compared = T\*N\*(floor(L/N) choose floor(M/N))/(4^(floor(L/N)-floor(M/N)))
 
 For a given run L and M are constant so to calculate the optimal value of N we simply test the above equation for all values of N<=L to find the minimum.
 
